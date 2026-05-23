@@ -106,7 +106,6 @@ async function apiFetch(path) {
 export default function App() {
   const [partidos,  setPartidos]  = useState(()=>LD("q22_fix",[]));
   const [eventos,   setEventos]   = useState(()=>LD("q22_evs",{}));
-
   const [reglas,    setReglas]    = useState(()=>LD("q22_reglas", REGLAS_DEFAULT));
   const [bonos,     setBonos]     = useState(()=>LD("q22_bonos",{ fairPlay:"", portero:"", goleo:"" }));
 
@@ -178,24 +177,6 @@ export default function App() {
     addLog(`✅ ${cargados} eventos cargados${pendientes>0?` · ${pendientes} pendientes (mañana)`:"· ¡Todos listos!"}`);
   }, [partidos, eventos]);
 
-  // ── 3. Fetch top scorer (1x por día) ──────────────────────────────────────
-  const fetchTopScorer = useCallback(async (forzar=false) => {
-    const ahora=Date.now(), ts=LDT("q22_scorer");
-    setEstado(e=>({...e,scorer:"loading"}));
-    addLog("📡 Cargando goleador...");
-    try {
-      const lista = await apiFetch(`/players/topscorers?league=${LEAGUE_ID}&season=${SEASON}`);
-      if (lista.length>0) {
-        const top = { nombre: lista[0].player.name, equipo: lista[0].statistics[0].team.name, goles: lista[0].statistics[0].goals.total };
-        LS("q22_scorer",top); LST("q22_scorer");
-        setTopScorer(top);
-        addLog(`✅ Goleador: ${top.nombre} (${top.equipo}) - ${top.goles} goles`);
-      }
-      setEstado(e=>({...e,scorer:"ok"}));
-    } catch(err) {
-      addLog(`❌ Goleador: ${err.message}`);
-      setEstado(e=>({...e,scorer:"error"}));
-    }
 
   // Carga inicial
   useEffect(()=>{
@@ -423,13 +404,13 @@ export default function App() {
               </div>
               {editBonos?(
                 <div style={{marginTop:8}}>
-                  <label style={S.lbl}>Equipo del Goleador (Golden Boot)</label>
+                  <label style={S.lbl}>Equipo Goleador (Golden Boot)</label>
                   <input style={S.inp} value={bonosTmp.goleo} placeholder="ej. France"
                     onChange={e=>setBonosTmp(p=>({...p,goleo:e.target.value}))}/>
                   <label style={{...S.lbl,marginTop:8}}>Equipo Fair Play</label>
                   <input style={S.inp} value={bonosTmp.fairPlay} placeholder="ej. England"
                     onChange={e=>setBonosTmp(p=>({...p,fairPlay:e.target.value}))}/>
-                  <label style={{...S.lbl,marginTop:8}}>Equipo mejor Portero (Golden Glove)</label>
+                  <label style={{...S.lbl,marginTop:8}}>Equipo mejor Portero</label>
                   <input style={S.inp} value={bonosTmp.portero} placeholder="ej. Argentina"
                     onChange={e=>setBonosTmp(p=>({...p,portero:e.target.value}))}/>
                 </div>
