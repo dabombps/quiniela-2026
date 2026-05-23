@@ -1,79 +1,33 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// QUINIELA MUNDIAL 2022 — Verificación contra Excel original
+// QUINIELA MUNDIAL 2022 — Con tarjetas, goleo automático, bonos manuales
 // ─────────────────────────────────────────────────────────────────────────────
 const WORKER_URL = "https://quiniela-proxy.dabombps.workers.dev";
-const API_KEY    = "f511995177592a89c2c38930218b64ba";
 const LEAGUE_ID  = 1;
 const SEASON     = 2022;
-const CACHE_MS   = 10 * 60 * 1000;
 
-// ─── Reglas (exactas del Excel) ───────────────────────────────────────────────
-const REGLAS = {
-  ganado: 5, empate: 2, perdido: 0,
-  amarilla: -1, roja: -5, difGoles: 1,
-  primeroGrupo: 7, segundoGrupo: 4,
-  eliminatoria: 10,
-  fairPlay: 10, goleoPortero: 3, campeonGoleo: 5,
+// Caché: fixtures cada 5min, eventos 1x/día, topscorers 1x/día
+const CACHE_FIXTURES_MS  = 5  * 60  * 1000;
+const CACHE_EVENTS_MS    = 24 * 60  * 60 * 1000;
+
+// ─── Reglas ───────────────────────────────────────────────────────────────────
+const REGLAS_DEFAULT = {
+  ganado:5, empate:2, perdido:0,
+  amarilla:-1, roja:-5, difGoles:1,
+  primeroGrupo:7, segundoGrupo:4,
+  eliminatoria:10,
+  fairPlay:10, portero:3, goleo:5,
 };
 
-// ─── Dueños del Excel (Hoja 5) ────────────────────────────────────────────────
-// Nombres en español → inglés para matchear con API-Football
-const DUENOS_EXCEL = {
-  // Buka
-  "Argentina":       "Buka",
-  "Denmark":         "Buka",
-  "Korea Republic":  "Buka",
-  "Wales":           "Buka",
-  "Iran":            "Buka",
-  // Oralia
-  "Belgium":         "Oralia",
-  "Croatia":         "Oralia",
-  "Tunisia":         "Oralia",
-  "Canada":          "Oralia",
-  "Switzerland":     "Oralia",
-  // Melo
-  "Portugal":        "Melo",
-  "Uruguay":         "Melo",
-  "Japan":           "Melo",
-  "Costa Rica":      "Melo",
-  "Ghana":           "Melo",
-  // Carlos
-  "Spain":           "Carlos",
-  "Germany":         "Carlos",
-  "Poland":          "Carlos",
-  "Australia":       "Carlos",
-  "Senegal":         "Carlos",
-  // Rodrigo
-  "Brazil":          "Rodrigo",
-  "United States":   "Rodrigo",
-  "Serbia":          "Rodrigo",
-  "Ecuador":         "Rodrigo",
-  "Saudi Arabia":    "Rodrigo",
-  // Marioly
-  "England":         "Marioly",
-  "Netherlands":     "Marioly",
-  "Morocco":         "Marioly",
-  "Cameroon":        "Marioly",
-  "France":          "Marioly",
-};
-
-// ─── Bonos especiales del Excel ───────────────────────────────────────────────
-const BONOS_ESPECIALES = [
-  { desc: "FIFA Fair Play",     equipo: "England",   dueno: "Marioly", pts: 10 },
-  { desc: "Campeón Goleo",      equipo: "France",    dueno: "Marioly", pts: 5  },
-  { desc: "Mejor Portero",      equipo: "Argentina", dueno: "Buka",    pts: 3  },
-];
-
-// ─── Resultados finales del Excel para comparar ───────────────────────────────
-const TOTALES_EXCEL = {
-  "Marioly": null, // lo calcularemos
-  "Buka":    null,
-  "Melo":    null,
-  "Carlos":  null,
-  "Rodrigo": null,
-  "Oralia":  null,
+// ─── Dueños 2022 ──────────────────────────────────────────────────────────────
+const DUENOS_2022 = {
+  "Argentina":"Buka","Denmark":"Buka","Korea Republic":"Buka","Wales":"Buka","Iran":"Buka",
+  "Belgium":"Oralia","Croatia":"Oralia","Tunisia":"Oralia","Canada":"Oralia","Switzerland":"Oralia",
+  "Portugal":"Melo","Uruguay":"Melo","Japan":"Melo","Costa Rica":"Melo","Ghana":"Melo",
+  "Spain":"Carlos","Germany":"Carlos","Poland":"Carlos","Australia":"Carlos","Senegal":"Carlos",
+  "Brazil":"Rodrigo","United States":"Rodrigo","Serbia":"Rodrigo","Ecuador":"Rodrigo","Saudi Arabia":"Rodrigo",
+  "England":"Marioly","Netherlands":"Marioly","Morocco":"Marioly","Cameroon":"Marioly","France":"Marioly",
 };
 
 // ─── Banderas ─────────────────────────────────────────────────────────────────
@@ -84,19 +38,20 @@ const FL = {
   "Australia":"🇦🇺","Morocco":"🇲🇦","Croatia":"🇭🇷","Germany":"🇩🇪","Japan":"🇯🇵",
   "Spain":"🇪🇸","Costa Rica":"🇨🇷","Belgium":"🇧🇪","Canada":"🇨🇦","Switzerland":"🇨🇭",
   "Cameroon":"🇨🇲","Uruguay":"🇺🇾","Korea Republic":"🇰🇷","Portugal":"🇵🇹","Ghana":"🇬🇭",
-  "Brazil":"🇧🇷","Serbia":"🇷🇸",
+  "Brazil":"🇧🇷","Serbia":"🇷🇸","Qatar":"🇶🇦",
 };
 const fl = n => FL[n] || "🏳️";
 
 const FINAL   = ["FT","AET","PEN","AWD","WO"];
 const VIVO    = ["1H","HT","2H","ET","BT","P","SUSP","INT","LIVE"];
+const PROXIMO = ["NS","TBD","PST"];
 
 const faseLabel = r => {
   if (!r) return ""; const l = r.toLowerCase();
   if (l.includes("group")) return "Fase de Grupos";
-  if (l.includes("16")) return "Octavos";
+  if (l.includes("16"))    return "Octavos";
   if (l.includes("quarter")) return "Cuartos";
-  if (l.includes("semi")) return "Semifinal";
+  if (l.includes("semi"))  return "Semifinal";
   if (l.includes("third")||l.includes("3rd")) return "3er Lugar";
   if (l.includes("final")) return "Final";
   return r;
@@ -107,68 +62,161 @@ const esKO = r => {
          l.includes("final")||l.includes("third")||l.includes("3rd");
 };
 
-const LD = (k,d) => { try { return JSON.parse(localStorage.getItem(k))??d; } catch { return d; }};
-const LS = (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
+// ─── LocalStorage helpers ─────────────────────────────────────────────────────
+const LD  = (k,d)  => { try { return JSON.parse(localStorage.getItem(k))??d; } catch { return d; }};
+const LS  = (k,v)  => { try { localStorage.setItem(k,JSON.stringify(v)); } catch {} };
+const LDT = k      => { try { return parseInt(localStorage.getItem(k+"_ts")||"0"); } catch { return 0; }};
+const LST = k      => { try { localStorage.setItem(k+"_ts", String(Date.now())); } catch {} };
 
 // ─── Cálculo puntos ───────────────────────────────────────────────────────────
-function calcPuntos(p, eq) {
+function calcPuntos(p, eq, eventos, R) {
   const esL = p.teams?.home?.name===eq, esV = p.teams?.away?.name===eq;
   if (!esL&&!esV) return null;
   if (p.goals?.home==null||p.goals?.away==null) return null;
   const mg=esL?p.goals.home:p.goals.away, sg=esL?p.goals.away:p.goals.home, diff=mg-sg;
   const ko=esKO(p.league?.round);
-  let pt = diff>0?(ko?REGLAS.eliminatoria:REGLAS.ganado):diff===0?(ko?0:REGLAS.empate):REGLAS.perdido;
-  if (diff>0&&!ko) pt += diff*REGLAS.difGoles;
-  const evs=(p.events||[]).filter(e=>e.team?.name===(esL?p.teams.home.name:p.teams.away.name));
-  const am=evs.filter(e=>e.type==="Card"&&e.detail==="Yellow Card").length;
-  const ro=evs.filter(e=>e.type==="Card"&&(e.detail==="Red Card"||e.detail==="Second Yellow card")).length;
-  pt += am*REGLAS.amarilla + ro*REGLAS.roja;
+  let pt = diff>0?(ko?R.eliminatoria:R.ganado):diff===0?(ko?0:R.empate):R.perdido;
+  if (diff>0&&!ko) pt += diff*R.difGoles;
+
+  // Tarjetas desde eventos cacheados
+  const evs = (eventos[p.fixture.id]||[])
+    .filter(e=>e.team?.name===(esL?p.teams.home.name:p.teams.away.name));
+  const am = evs.filter(e=>e.type==="Card"&&e.detail==="Yellow Card").length;
+  const ro = evs.filter(e=>e.type==="Card"&&(e.detail==="Red Card"||e.detail==="Second Yellow card")).length;
+  pt += am*R.amarilla + ro*R.roja;
+
   return { pt, mg, sg, diff, ko, am, ro, esL };
 }
 
+// ─── API fetch helper ─────────────────────────────────────────────────────────
+async function apiFetch(path) {
+  const res = await fetch(`${WORKER_URL}/proxy${path}`, {
+    signal: AbortSignal.timeout(15000)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.errors && Object.keys(data.errors).length>0)
+    throw new Error(Object.values(data.errors)[0]);
+  return data.response || [];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APP PRINCIPAL
 // ─────────────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [partidos, setPartidos] = useState(()=>LD("q22_data",[]));
-  const [cargando, setCargando] = useState(false);
-  const [estadoAPI, setEstadoAPI] = useState("idle");
-  const [ultimaAct, setUltimaAct] = useState(null);
-  const [tab, setTab] = useState("tabla");
-  const [filtroFase, setFiltroFase] = useState("TODOS");
-  const [reqRestantes, setReqRestantes] = useState(null);
-  const timerRef = useRef(null);
+  const [partidos,  setPartidos]  = useState(()=>LD("q22_fix",[]));
+  const [eventos,   setEventos]   = useState(()=>LD("q22_evs",{}));
 
-  const fetchPartidos = useCallback(async (forzar=false) => {
-    const ahora=Date.now(), ts=LD("q22_ts",0);
-    if (!forzar&&partidos.length>0&&(ahora-ts)<CACHE_MS) return;
-    setCargando(true); setEstadoAPI("loading");
+  const [reglas,    setReglas]    = useState(()=>LD("q22_reglas", REGLAS_DEFAULT));
+  const [bonos,     setBonos]     = useState(()=>LD("q22_bonos",{ fairPlay:"", portero:"", goleo:"" }));
+
+  const [estado,    setEstado]    = useState({fixtures:"idle", eventos:"idle"});
+  const [ultimaAct, setUltimaAct] = useState(null);
+  const [tab,       setTab]       = useState("tabla");
+  const [filtroFase, setFiltroFase] = useState("TODOS");
+  const [editReglas, setEditReglas] = useState(false);
+  const [editBonos,  setEditBonos]  = useState(false);
+  const [reglasTmp,  setReglasTmp]  = useState(reglas);
+  const [bonosTmp,   setBonosTmp]   = useState(bonos);
+  const [logMsgs,    setLogMsgs]    = useState([]);
+  const [reqRest,    setReqRest]    = useState(null);
+
+  const addLog = msg => setLogMsgs(p=>[`${new Date().toLocaleTimeString("es-MX")}: ${msg}`,...p.slice(0,19)]);
+
+  // ── 1. Fetch fixtures (cada 5 min) ─────────────────────────────────────────
+  const fetchFixtures = useCallback(async (forzar=false) => {
+    const ahora=Date.now(), ts=LDT("q22_fix");
+    if (!forzar&&partidos.length>0&&(ahora-ts)<CACHE_FIXTURES_MS) return;
+    setEstado(e=>({...e,fixtures:"loading"}));
+    addLog("📡 Cargando fixtures 2022...");
     try {
-      const res = await fetch(
-        `${WORKER_URL}/proxy/fixtures?league=${LEAGUE_ID}&season=${SEASON}`,
-        {}
-      );
-      const rem = res.headers.get("x-ratelimit-requests-remaining");
-      if (rem) setReqRestantes(rem);
-      const data = await res.json();
-      if (data.errors&&Object.keys(data.errors).length>0) throw new Error(Object.values(data.errors)[0]);
-      const lista = data.response||[];
-      LS("q22_data",lista); LS("q22_ts",Date.now());
-      setPartidos(lista); setUltimaAct(new Date()); setEstadoAPI("ok");
-    } catch(e) {
-      setEstadoAPI("error");
-      console.error(e);
-    } finally { setCargando(false); }
+      const lista = await apiFetch(`/fixtures?league=${LEAGUE_ID}&season=${SEASON}`);
+      addLog(`✅ ${lista.length} partidos cargados`);
+      LS("q22_fix",lista); LST("q22_fix");
+      setPartidos(lista); setUltimaAct(new Date());
+      setEstado(e=>({...e,fixtures:"ok"}));
+    } catch(err) {
+      addLog(`❌ Fixtures: ${err.message}`);
+      setEstado(e=>({...e,fixtures:"error"}));
+    }
   }, [partidos.length]);
 
-  useEffect(()=>{ fetchPartidos(); },[]);
-  useEffect(()=>{
-    timerRef.current = setInterval(()=>fetchPartidos(), CACHE_MS);
-    return ()=>clearInterval(timerRef.current);
-  },[fetchPartidos]);
+  // ── 2. Fetch eventos/tarjetas (1x por día, por lotes de 10) ───────────────
+  const fetchEventos = useCallback(async (forzar=false) => {
+    const ahora=Date.now(), ts=LDT("q22_evs");
+    if (!forzar&&(ahora-ts)<CACHE_EVENTS_MS&&Object.keys(eventos).length>0) {
+      addLog(`✅ Eventos en caché (${Object.keys(eventos).length} partidos)`);
+      return;
+    }
+    const terminados = partidos.filter(p=>FINAL.includes(p.fixture?.status?.short));
+    const sinEvs = terminados.filter(p=>!eventos[p.fixture.id]);
+    if (sinEvs.length===0) { addLog("✅ Todos los eventos ya en caché"); return; }
 
-  // ── Calcular stats por dueño ──────────────────────────────────────────────
-  const duenos = DUENOS_EXCEL;
+    setEstado(e=>({...e,eventos:"loading"}));
+    addLog(`📡 Cargando eventos de ${sinEvs.length} partidos (lotes de 10)...`);
+
+    const nuevosEvs = {...eventos};
+    // Procesar en lotes de 10 para no gastar todas las requests de una
+    const lote = sinEvs.slice(0,10);
+    let cargados = 0;
+
+    for (const p of lote) {
+      try {
+        const evData = await apiFetch(`/fixtures?id=${p.fixture.id}`);
+        const evs = evData[0]?.events || [];
+        nuevosEvs[p.fixture.id] = evs;
+        cargados++;
+        // pequeña pausa para no saturar
+        await new Promise(r=>setTimeout(r,200));
+      } catch {}
+    }
+
+    LS("q22_evs",nuevosEvs); LST("q22_evs");
+    setEventos(nuevosEvs);
+    setEstado(e=>({...e,eventos:"ok"}));
+    const pendientes = sinEvs.length - cargados;
+    addLog(`✅ ${cargados} eventos cargados${pendientes>0?` · ${pendientes} pendientes (mañana)`:"· ¡Todos listos!"}`);
+  }, [partidos, eventos]);
+
+  // ── 3. Fetch top scorer (1x por día) ──────────────────────────────────────
+  const fetchTopScorer = useCallback(async (forzar=false) => {
+    const ahora=Date.now(), ts=LDT("q22_scorer");
+    setEstado(e=>({...e,scorer:"loading"}));
+    addLog("📡 Cargando goleador...");
+    try {
+      const lista = await apiFetch(`/players/topscorers?league=${LEAGUE_ID}&season=${SEASON}`);
+      if (lista.length>0) {
+        const top = { nombre: lista[0].player.name, equipo: lista[0].statistics[0].team.name, goles: lista[0].statistics[0].goals.total };
+        LS("q22_scorer",top); LST("q22_scorer");
+        setTopScorer(top);
+        addLog(`✅ Goleador: ${top.nombre} (${top.equipo}) - ${top.goles} goles`);
+      }
+      setEstado(e=>({...e,scorer:"ok"}));
+    } catch(err) {
+      addLog(`❌ Goleador: ${err.message}`);
+      setEstado(e=>({...e,scorer:"error"}));
+    }
+
+  // Carga inicial
+  useEffect(()=>{
+    fetchFixtures().then(()=>{ fetchEventos(); });
+  },[]);
+
+  // Auto-refresh fixtures cada 5 min
+  const timerRef = useRef(null);
+  useEffect(()=>{
+    timerRef.current = setInterval(()=>fetchFixtures(), CACHE_FIXTURES_MS);
+    return ()=>clearInterval(timerRef.current);
+  },[fetchFixtures]);
+
+  // Cuando llegan fixtures nuevos, cargar eventos
+  useEffect(()=>{
+    if (partidos.length>0) fetchEventos();
+  },[partidos]);
+
+  // ── Calcular tabla ────────────────────────────────────────────────────────
   const eqPorD = {};
-  Object.entries(duenos).forEach(([eq,d])=>{ if(!eqPorD[d])eqPorD[d]=[]; eqPorD[d].push(eq); });
+  Object.entries(DUENOS_2022).forEach(([eq,d])=>{ if(!eqPorD[d])eqPorD[d]=[]; eqPorD[d].push(eq); });
 
   const statsD = {};
   Object.keys(eqPorD).forEach(d=>{ statsD[d]={pt:0,g:0,e:0,p_:0,gl:0,am:0,ro:0,det:[]}; });
@@ -177,32 +225,54 @@ export default function App() {
 
   jugados.forEach(par=>{
     [par.teams?.home?.name,par.teams?.away?.name].forEach(eq=>{
-      const d=duenos[eq]; if(!d||!statsD[d]) return;
-      const r=calcPuntos(par,eq); if(!r) return;
+      const d=DUENOS_2022[eq]; if(!d||!statsD[d]) return;
+      const r=calcPuntos(par,eq,eventos,reglas); if(!r) return;
       const s=statsD[d];
       s.pt+=r.pt; if(r.diff>0)s.g++;else if(r.diff===0&&!r.ko)s.e++;else s.p_++;
       s.gl+=r.mg; s.am+=r.am; s.ro+=r.ro; s.det.push({par,eq,r});
     });
   });
 
-  // Agregar bonos especiales
-  BONOS_ESPECIALES.forEach(b=>{
-    if (statsD[b.dueno]) statsD[b.dueno].pt += b.pts;
-  });
+  // Bonos especiales
+  // Fair Play
+  if (bonos.fairPlay) {
+    const d = DUENOS_2022[bonos.fairPlay];
+    if (d&&statsD[d]) statsD[d].pt += reglas.fairPlay;
+  }
+  // Portero
+  if (bonos.portero) {
+    const d = DUENOS_2022[bonos.portero];
+    if (d&&statsD[d]) statsD[d].pt += reglas.portero;
+  }
+  // Goleo (manual)
+  if (bonos.goleo) {
+    const d = DUENOS_2022[bonos.goleo];
+    if (d&&statsD[d]) statsD[d].pt += reglas.goleo;
+  }
 
-  const tabla = Object.entries(statsD)
-    .sort((a,b)=>b[1].pt-a[1].pt)
-    .map(([d,s],i)=>({pos:i+1,d,...s}));
+  const tabla = Object.entries(statsD).sort((a,b)=>b[1].pt-a[1].pt).map(([d,s],i)=>({pos:i+1,d,...s}));
 
-  const fases = ["TODOS",...new Set(jugados.map(p=>faseLabel(p.league?.round)).filter(Boolean))];
-  const jugFilt = filtroFase==="TODOS" ? jugados : jugados.filter(p=>faseLabel(p.league?.round)===filtroFase);
-  const med = p => p===1?"🥇":p===2?"🥈":p===3?"🥉":`${p}.`;
+  const proximos = partidos.filter(p=>PROXIMO.includes(p.fixture?.status?.short));
+  const enVivo   = partidos.filter(p=>VIVO.includes(p.fixture?.status?.short));
+  const fases    = ["TODOS",...new Set(jugados.map(p=>faseLabel(p.league?.round)).filter(Boolean))];
+  const jugFilt  = filtroFase==="TODOS"?jugados:jugados.filter(p=>faseLabel(p.league?.round)===filtroFase);
+
+  const evCargados = Object.keys(eventos).length;
+  const pctEventos = jugados.length>0 ? Math.round(evCargados/jugados.length*100) : 0;
+
+  const guardarReglas = () => { setReglas(reglasTmp); LS("q22_reglas",reglasTmp); setEditReglas(false); };
+  const guardarBonos  = () => { setBonos(bonosTmp);   LS("q22_bonos", bonosTmp);  setEditBonos(false);  };
+
+  const med = p=>p===1?"🥇":p===2?"🥈":p===3?"🥉":`${p}.`;
+  const todosOk = estado.fixtures==="ok";
+  const hayError = Object.values(estado).some(v=>v==="error");
 
   const TABS = [
     {id:"tabla",   lbl:"🏆 Tabla"},
     {id:"partidos",lbl:`📅 Partidos (${jugados.length})`},
-    {id:"equipos", lbl:"⚽ Equipos"},
     {id:"bonos",   lbl:"🎖 Bonos"},
+    {id:"reglas",  lbl:"📋 Reglas"},
+    {id:"debug",   lbl:"🔧 Debug"},
   ];
 
   return (
@@ -218,49 +288,41 @@ export default function App() {
             </div>
           </div>
           <div style={S.hdrR}>
-            <span style={{background:"rgba(234,179,8,0.2)",border:"1px solid #ca8a04",borderRadius:20,padding:"2px 10px",fontSize:11,color:"#fbbf24",fontWeight:700}}>
-              🔍 MODO VERIFICACIÓN
+            <span style={{background:"rgba(234,179,8,0.2)",border:"1px solid #ca8a04",borderRadius:20,padding:"2px 10px",fontSize:10,color:"#fbbf24",fontWeight:700}}>
+              🔍 VERIFICACIÓN
             </span>
-            {reqRestantes && <span style={{fontSize:11,color:"#64748b"}}>API: {reqRestantes} req</span>}
-            {ultimaAct && <span style={{fontSize:11,color:"#64748b"}}>🔄 {ultimaAct.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}</span>}
-            <span style={{fontSize:11,color:estadoAPI==="ok"?"#4ade80":estadoAPI==="error"?"#f87171":"#64748b"}}>
-              {cargando?"⏳":estadoAPI==="ok"?`✅ ${jugados.length} partidos`:"❌ Error"}
+            {enVivo.length>0&&<span style={S.vivoBadge}>🔴 VIVO ({enVivo.length})</span>}
+            {ultimaAct&&<span style={S.mini}>🔄 {ultimaAct.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit"})}</span>}
+            <span style={{fontSize:10,color:pctEventos===100?"#4ade80":pctEventos>0?"#fbbf24":"#64748b"}}>
+              🃏 {pctEventos}% eventos
             </span>
-            <button onClick={()=>fetchPartidos(true)} disabled={cargando} style={S.btnAct}>
-              {cargando?"...":"↺"}
+            <span style={{fontSize:11,color:todosOk?"#4ade80":hayError?"#f87171":"#64748b"}}>
+              {estado.fixtures==="loading"?"⏳":todosOk?`✅ ${jugados.length}J`:"❌"}
+            </span>
+            <button onClick={()=>{fetchFixtures(true).then(()=>{fetchEventos(true);})}} style={S.btnAct}>
+              ↺
             </button>
           </div>
         </div>
         <nav style={S.tabs}>
           {TABS.map(t=>(
-            <button key={t.id} style={{...S.tab,...(tab===t.id?S.tabA:{})}} onClick={()=>setTab(t.id)}>
-              {t.lbl}
-            </button>
+            <button key={t.id} style={{...S.tab,...(tab===t.id?S.tabA:{})}} onClick={()=>setTab(t.id)}>{t.lbl}</button>
           ))}
         </nav>
       </header>
 
       <main style={S.main}>
-        {estadoAPI==="error" && (
-          <div style={S.errBox}>❌ Error conectando con la API. Verifica que el Worker de Cloudflare esté activo.</div>
-        )}
-        {estadoAPI==="loading" && partidos.length===0 && (
-          <div style={S.infoBox}>⏳ Cargando partidos del Mundial 2022 desde API-Football...</div>
-        )}
+        {hayError&&<div style={S.errBox}>❌ Error conectando. Verifica que el Worker de Cloudflare esté activo.</div>}
 
         {/* ══ TABLA ══ */}
-        {tab==="tabla" && (
+        {tab==="tabla"&&(
           <div>
             <H2>Tabla de Posiciones</H2>
-            <div style={S.infoBox}>
-              💡 Compara estos resultados con tu Excel original. Los puntos incluyen partidos de grupo,
-              eliminatorias, tarjetas y los bonos especiales (Fair Play, Goleo, Portero).
-            </div>
-
-            {jugados.length===0 && estadoAPI==="ok" && (
-              <div style={S.errBox}>⚠️ La API no devolvió partidos para 2022. Verifica que el Worker esté activo.</div>
+            {pctEventos<100&&(
+              <div style={S.infoBox}>
+                ⏳ Tarjetas cargadas al {pctEventos}% — se completan automáticamente ({evCargados}/{jugados.length} partidos). El límite es 10 por sesión para no agotar las 100 requests diarias.
+              </div>
             )}
-
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
               {tabla.map(row=>(
                 <div key={row.d} style={{...S.cardD,...(row.pos===1?{border:"1px solid #f59e0b"}:row.pos===2?{border:"1px solid #94a3b8"}:row.pos===3?{border:"1px solid #b45309"}:{})}}>
@@ -268,7 +330,7 @@ export default function App() {
                     <div>
                       <div style={{fontSize:22}}>{med(row.pos)}</div>
                       <div style={{fontSize:20,fontWeight:900}}>{row.d}</div>
-                      <div style={S.bigPts}>{row.pt}<span style={{fontSize:13,fontWeight:400,marginLeft:4}}>pts</span></div>
+                      <div style={S.bigPts}>{row.pt}<span style={{fontSize:12,fontWeight:400,marginLeft:4}}>pts</span></div>
                       <div style={S.chips}>
                         <span style={S.chip}>✅ {row.g}G</span>
                         <span style={S.chip}>➖ {row.e}E</span>
@@ -279,9 +341,8 @@ export default function App() {
                       </div>
                     </div>
                     <div style={{textAlign:"right"}}>
-                      <div style={{fontSize:11,color:"#475569",marginBottom:4}}>Equipos</div>
                       {(eqPorD[row.d]||[]).map(eq=>(
-                        <div key={eq} style={{fontSize:12,color:"#94a3b8"}}>{fl(eq)} {eq}</div>
+                        <div key={eq} style={{fontSize:11,color:"#94a3b8"}}>{fl(eq)} {eq}</div>
                       ))}
                     </div>
                   </div>
@@ -290,11 +351,11 @@ export default function App() {
             </div>
 
             {/* Desglose */}
-            {tabla.length > 0 && (
+            {tabla.length>0&&(
               <>
-                <H2 style={{marginTop:24}}>Desglose por Partido</H2>
+                <H2 style={{marginTop:20}}>Desglose por Partido</H2>
                 <div style={S.tblD}>
-                  <div style={S.fD}>{["Dueño","Equipo","Rival","Marcador","Fase","🟨","🟥","Pts"].map(h=><span key={h} style={S.hD}>{h}</span>)}</div>
+                  <div style={S.fD}>{["Dueño","Equipo","Rival","Goles","Fase","🟨","🟥","Pts"].map(h=><span key={h} style={S.hD}>{h}</span>)}</div>
                   {tabla.flatMap(row=>row.det.map((d,i)=>{
                     const rival=d.r.esL?d.par.teams?.away?.name:d.par.teams?.home?.name;
                     const sc=d.r.esL?`${d.par.goals.home}–${d.par.goals.away}`:`${d.par.goals.away}–${d.par.goals.home}`;
@@ -320,7 +381,7 @@ export default function App() {
         )}
 
         {/* ══ PARTIDOS ══ */}
-        {tab==="partidos" && (
+        {tab==="partidos"&&(
           <div>
             <H2>Partidos ({jugados.length})</H2>
             <div style={S.filtros}>
@@ -328,107 +389,222 @@ export default function App() {
                 <button key={f} style={{...S.btnF,...(filtroFase===f?S.btnFA:{})}} onClick={()=>setFiltroFase(f)}>{f}</button>
               ))}
             </div>
-            {jugFilt.length===0
-              ? <p style={{color:"#64748b",fontSize:13}}>Sin partidos en esta fase.</p>
-              : jugFilt.slice().reverse().map(p=><CP key={p.fixture.id} p={p} duenos={duenos}/>)
+            {jugFilt.length===0?<p style={{color:"#64748b",fontSize:13}}>Sin partidos.</p>
+              :jugFilt.slice().reverse().map(p=>(
+                <CP key={p.fixture.id} p={p} duenos={DUENOS_2022} eventos={eventos} reglas={reglas}/>
+              ))
             }
           </div>
         )}
 
-        {/* ══ EQUIPOS ══ */}
-        {tab==="equipos" && (
-          <div>
-            <H2>Equipos por Participante</H2>
-            <p style={{color:"#64748b",fontSize:13,marginBottom:12}}>
-              Asignación original del Excel — 5 equipos por participante.
-            </p>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:10}}>
-              {Object.entries(eqPorD).map(([d,eqs])=>(
-                <div key={d} style={{background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:10,padding:12}}>
-                  <div style={{fontSize:16,fontWeight:900,color:"#f59e0b",marginBottom:8}}>{d}</div>
-                  {eqs.map(eq=>(
-                    <div key={eq} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                      <span style={{fontSize:20}}>{fl(eq)}</span>
-                      <span style={{fontSize:13,flex:1}}>{eq}</span>
-                      <span style={{fontSize:11,color:"#64748b"}}>
-                        {statsD[d]?.det.filter(x=>x.eq===eq).length || 0} partidos
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ══ BONOS ══ */}
-        {tab==="bonos" && (
+        {tab==="bonos"&&(
           <div>
             <H2>Bonos Especiales</H2>
-            <p style={{color:"#64748b",fontSize:13,marginBottom:12}}>
-              Estos bonos se tomaron directamente del Excel original.
+            <p style={{color:"#64748b",fontSize:13,marginBottom:16}}>
+              El Goleador se obtiene automáticamente de la API. El Portero y Fair Play los capturas manualmente cuando FIFA los anuncie al final del torneo.
             </p>
-            <div style={{display:"flex",flexDirection:"column",gap:8}}>
-              {BONOS_ESPECIALES.map((b,i)=>(
-                <div key={i} style={{background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:10,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                  <div>
-                    <div style={{fontSize:15,fontWeight:700}}>{b.desc}</div>
-                    <div style={{fontSize:13,color:"#94a3b8",marginTop:2}}>{fl(b.equipo)} {b.equipo} → <strong style={{color:"#f59e0b"}}>{b.dueno}</strong></div>
-                  </div>
-                  <div style={{fontSize:24,fontWeight:900,color:"#4ade80"}}>+{b.pts} pts</div>
+
+            {/* Goleador manual */}
+            <div style={S.bonoCard}>
+              <div style={S.bonoHdr}>
+                <span style={{fontSize:20}}>⚽</span>
+                <div>
+                  <div style={{fontWeight:900,fontSize:15}}>Campeón Goleo (Golden Boot)</div>
+                  <div style={{fontSize:12,color:"#64748b"}}>+{reglas.goleo} pts — captura manual al final del torneo</div>
                 </div>
-              ))}
+                {!editBonos&&<button style={{...S.btnSmall,marginLeft:"auto"}} onClick={()=>{setBonosTmp({...bonos});setEditBonos(true);}}>✏️ Editar</button>}
+                {editBonos&&(
+                  <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                    <button style={{...S.btnSmall,background:"#64748b"}} onClick={()=>setEditBonos(false)}>Cancelar</button>
+                    <button style={{...S.btnSmall,background:"#16a34a"}} onClick={guardarBonos}>✅ Guardar</button>
+                  </div>
+                )}
+              </div>
+              {editBonos?(
+                <div style={{marginTop:8}}>
+                  <label style={S.lbl}>Equipo del Goleador (Golden Boot)</label>
+                  <input style={S.inp} value={bonosTmp.goleo} placeholder="ej. France"
+                    onChange={e=>setBonosTmp(p=>({...p,goleo:e.target.value}))}/>
+                  <label style={{...S.lbl,marginTop:8}}>Equipo Fair Play</label>
+                  <input style={S.inp} value={bonosTmp.fairPlay} placeholder="ej. England"
+                    onChange={e=>setBonosTmp(p=>({...p,fairPlay:e.target.value}))}/>
+                  <label style={{...S.lbl,marginTop:8}}>Equipo mejor Portero (Golden Glove)</label>
+                  <input style={S.inp} value={bonosTmp.portero} placeholder="ej. Argentina"
+                    onChange={e=>setBonosTmp(p=>({...p,portero:e.target.value}))}/>
+                </div>
+              ):(
+                <div style={{marginTop:8}}>
+                  <div style={S.bonoVal}>
+                    <span style={{fontSize:22}}>{bonos.goleo?fl(bonos.goleo):"❓"}</span>
+                    <div>
+                      <div style={{fontWeight:700}}>{bonos.goleo||"No capturado aún"}</div>
+                      {bonos.goleo&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {DUENOS_2022[bonos.goleo]||"Sin dueño"} +{reglas.goleo} pts</div>}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
-            <H2 style={{marginTop:24}}>Resumen de Puntos</H2>
+            {/* Fair Play manual */}
+            <div style={S.bonoCard}>
+              <div style={S.bonoHdr}>
+                <span style={{fontSize:20}}>🏅</span>
+                <div>
+                  <div style={{fontWeight:900,fontSize:15}}>FIFA Fair Play</div>
+                  <div style={{fontSize:12,color:"#64748b"}}>+{reglas.fairPlay} pts — captura manual</div>
+                </div>
+              </div>
+              <div style={{marginTop:8}}>
+                <div style={S.bonoVal}>
+                  <span style={{fontSize:22}}>{bonos.fairPlay?fl(bonos.fairPlay):"❓"}</span>
+                  <div>
+                    <div style={{fontWeight:700}}>{bonos.fairPlay||"No capturado aún"}</div>
+                    {bonos.fairPlay&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {DUENOS_2022[bonos.fairPlay]||"Sin dueño"} +{reglas.fairPlay} pts</div>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Portero manual */}
+            <div style={S.bonoCard}>
+              <div style={S.bonoHdr}>
+                <span style={{fontSize:20}}>🧤</span>
+                <div>
+                  <div style={{fontWeight:900,fontSize:15}}>Mejor Portero (Golden Glove)</div>
+                  <div style={{fontSize:12,color:"#64748b"}}>+{reglas.portero} pts — captura manual</div>
+                </div>
+              </div>
+              <div style={{marginTop:8}}>
+                <div style={S.bonoVal}>
+                  <span style={{fontSize:22}}>{bonos.portero?fl(bonos.portero):"❓"}</span>
+                  <div>
+                    <div style={{fontWeight:700}}>{bonos.portero||"No capturado aún"}</div>
+                    {bonos.portero&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {DUENOS_2022[bonos.portero]||"Sin dueño"} +{reglas.portero} pts</div>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Resumen bonos */}
+            <H2 style={{marginTop:20}}>Resumen Total</H2>
             <div style={S.tblD}>
-              <div style={{...S.fD, gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr"}}>
-                {["Jugador","Pts Partidos","Pts Bonos","TOTAL APP",""].map(h=><span key={h} style={S.hD}>{h}</span>)}
+              <div style={{...S.fD,gridTemplateColumns:"1fr 1fr 1fr 1fr"}}>
+                {["Jugador","Pts Partidos","Pts Bonos","TOTAL"].map(h=><span key={h} style={S.hD}>{h}</span>)}
               </div>
               {tabla.map((row,i)=>{
-                const bonosD = BONOS_ESPECIALES.filter(b=>b.dueno===row.d).reduce((s,b)=>s+b.pts,0);
-                const ptsPartidos = row.pt - bonosD;
+                let b=0;
+                if (bonos.fairPlay&&DUENOS_2022[bonos.fairPlay]===row.d) b+=reglas.fairPlay;
+                if (bonos.portero&&DUENOS_2022[bonos.portero]===row.d) b+=reglas.portero;
+                if (bonos.goleo&&DUENOS_2022[bonos.goleo]===row.d) b+=reglas.goleo;
+                const pp = row.pt-b;
                 return(
-                  <div key={row.d} style={{...S.fD,gridTemplateColumns:"1fr 1fr 1fr 1fr 1fr",background:i%2===0?"rgba(255,255,255,0.03)":"transparent"}}>
+                  <div key={row.d} style={{...S.fD,gridTemplateColumns:"1fr 1fr 1fr 1fr",background:i%2===0?"rgba(255,255,255,0.03)":"transparent"}}>
                     <span style={{...S.cD,fontWeight:700,color:"#e2e8f0"}}>{row.d}</span>
-                    <span style={{...S.cD,color:"#94a3b8"}}>{ptsPartidos}</span>
-                    <span style={{...S.cD,color:"#4ade80"}}>+{bonosD}</span>
+                    <span style={S.cD}>{pp}</span>
+                    <span style={{...S.cD,color:"#4ade80"}}>+{b}</span>
                     <span style={{...S.cD,fontWeight:900,color:"#f59e0b",fontSize:14}}>{row.pt}</span>
-                    <span style={{...S.cD,fontSize:16}}>{row.pos===1?"🥇":row.pos===2?"🥈":row.pos===3?"🥉":""}</span>
                   </div>
                 );
               })}
             </div>
           </div>
         )}
+
+        {/* ══ REGLAS ══ */}
+        {tab==="reglas"&&(
+          <div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <H2>Reglas de Puntuación</H2>
+              {!editReglas
+                ?<button style={S.btnEdit} onClick={()=>{setReglasTmp({...reglas});setEditReglas(true);}}>✏️ Editar</button>
+                :<div style={{display:"flex",gap:8}}>
+                  <button style={{...S.btnEdit,background:"#64748b"}} onClick={()=>setEditReglas(false)}>Cancelar</button>
+                  <button style={{...S.btnEdit,background:"#16a34a"}} onClick={guardarReglas}>✅ Guardar</button>
+                </div>
+              }
+            </div>
+            <div style={S.gridReglas}>
+              {[
+                {k:"ganado",      lbl:"Partido ganado (grupo)"},
+                {k:"empate",      lbl:"Empate (grupo)"},
+                {k:"perdido",     lbl:"Partido perdido"},
+                {k:"difGoles",    lbl:"Por gol de diferencia"},
+                {k:"amarilla",    lbl:"Tarjeta amarilla 🟨"},
+                {k:"roja",        lbl:"Expulsado (roja) 🟥"},
+                {k:"primeroGrupo",lbl:"Primero de grupo"},
+                {k:"segundoGrupo",lbl:"Segundo de grupo"},
+                {k:"eliminatoria",lbl:"Ganar en eliminatoria"},
+                {k:"goleo",       lbl:"Campeón Goleo"},
+                {k:"portero",     lbl:"Mejor Portero"},
+                {k:"fairPlay",    lbl:"FIFA Fair Play"},
+              ].map(r=>(
+                <div key={r.k} style={S.cardRegla}>
+                  <span style={{fontSize:12,color:"#94a3b8",flex:1}}>{r.lbl}</span>
+                  {editReglas
+                    ?<input type="number" style={{...S.inp,width:60,textAlign:"center",padding:"3px 6px"}}
+                        value={reglasTmp[r.k]}
+                        onChange={e=>setReglasTmp(p=>({...p,[r.k]:Number(e.target.value)}))}/>
+                    :<span style={{fontSize:15,fontWeight:900,color:"#f59e0b",marginLeft:8}}>
+                        {reglas[r.k]>0?"+":""}{reglas[r.k]} pts
+                      </span>
+                  }
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ══ DEBUG ══ */}
+        {tab==="debug"&&(
+          <div>
+            <H2>🔧 Debug</H2>
+            <div style={S.debugBox}>
+              <div style={S.debugRow}><span>Fixtures:</span><span style={{color:estado.fixtures==="ok"?"#4ade80":"#f87171"}}>{estado.fixtures} ({jugados.length} terminados)</span></div>
+              <div style={S.debugRow}><span>Eventos/tarjetas:</span><span style={{color:pctEventos===100?"#4ade80":"#fbbf24"}}>{evCargados}/{jugados.length} partidos ({pctEventos}%)</span></div>
+              <div style={S.debugRow}><span>Goleador (Golden Boot):</span><span>{bonos.goleo||"—"}</span></div>
+              <div style={S.debugRow}><span>Fair Play:</span><span>{bonos.fairPlay||"—"}</span></div>
+              <div style={S.debugRow}><span>Portero:</span><span>{bonos.portero||"—"}</span></div>
+            </div>
+            <div style={{...S.debugBox,marginTop:10}}>
+              <div style={{fontSize:12,color:"#f59e0b",fontWeight:700,marginBottom:6}}>Log de actividad</div>
+              {logMsgs.map((l,i)=><div key={i} style={{fontSize:11,color:"#64748b",padding:"2px 0"}}>{l}</div>)}
+            </div>
+            <button onClick={()=>{fetchFixtures(true).then(()=>{fetchEventos(true);})}}
+              style={{...S.btnEdit,marginTop:12,width:"100%",padding:"10px"}}>
+              🔄 Forzar actualización completa
+            </button>
+          </div>
+        )}
       </main>
 
       <footer style={{textAlign:"center",padding:12,fontSize:11,color:"#334155",borderTop:"1px solid #1e3a5f",marginTop:20}}>
-        ⚽ Quiniela Qatar 2022 · Datos: API-Football · Verificación vs Excel original
+        ⚽ Quiniela Qatar 2022 · API-Football · Tarjetas en caché diario · Goleo automático
       </footer>
     </div>
   );
 }
 
 // ─── Card Partido ─────────────────────────────────────────────────────────────
-function CP({ p, duenos }) {
+function CP({ p, duenos, eventos, reglas }) {
   const local=p.teams?.home?.name, visita=p.teams?.away?.name;
   const dL=duenos[local], dV=duenos[visita];
-  const faseStr=faseLabel(p.league?.round);
   const fecha=p.fixture?.date?new Date(p.fixture.date).toLocaleDateString("es-MX",{day:"2-digit",month:"short",hour:"2-digit",minute:"2-digit"}):"";
-  const rL=calcPuntos(p,local), rV=calcPuntos(p,visita);
-  const evs=p.events||[];
+  const rL=calcPuntos(p,local,eventos,reglas), rV=calcPuntos(p,visita,eventos,reglas);
+  const evs=eventos[p.fixture.id]||[];
   const gL=evs.filter(e=>e.type==="Goal"&&e.team?.name===local);
   const gV=evs.filter(e=>e.type==="Goal"&&e.team?.name===visita);
   const tL=evs.filter(e=>e.type==="Card"&&e.team?.name===local);
   const tV=evs.filter(e=>e.type==="Card"&&e.team?.name===visita);
+  const tieneEvs=evs.length>0;
   return(
     <div style={S.cardP}>
       <div style={S.metaP}>
-        <span style={S.bF}>{faseStr}</span>
+        <span style={S.bF}>{faseLabel(p.league?.round)}</span>
         {p.league?.round&&<span style={S.bR}>{p.league.round}</span>}
         <span style={{fontSize:11,color:"#475569",marginLeft:"auto"}}>{fecha}</span>
         {p.fixture?.venue?.city&&<span style={{fontSize:11,color:"#475569"}}>📍{p.fixture.venue.city}</span>}
+        {!tieneEvs&&<span style={{fontSize:9,color:"#475569",border:"1px solid #334155",borderRadius:3,padding:"1px 4px"}}>sin eventos</span>}
       </div>
       <div style={S.filaP}>
         <div style={S.ladoP}>
@@ -475,15 +651,17 @@ function CP({ p, duenos }) {
 
 function H2({children,style}){return <h2 style={{...S.h2,...style}}>{children}</h2>;}
 
-const S = {
+const S={
   root:{minHeight:"100vh",background:"linear-gradient(160deg,#060d1a,#0a1628,#0d1f3a)",color:"#e2e8f0",fontFamily:"'Barlow Condensed','Oswald','Arial Narrow',sans-serif",fontSize:15},
   hdr:{background:"linear-gradient(180deg,#071020,#0a1628)",borderBottom:"2px solid #1e3a5f",position:"sticky",top:0,zIndex:100,boxShadow:"0 6px 24px rgba(0,0,0,0.6)"},
   hdrTop:{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px",flexWrap:"wrap",gap:8},
   logo:{display:"flex",alignItems:"center",gap:10},
-  logoT:{fontSize:24,fontWeight:900,letterSpacing:4,background:"linear-gradient(90deg,#f59e0b,#ef4444)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"},
+  logoT:{fontSize:22,fontWeight:900,letterSpacing:4,background:"linear-gradient(90deg,#f59e0b,#ef4444)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"},
   logoS:{fontSize:10,color:"#475569",letterSpacing:2},
-  hdrR:{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"},
-  btnAct:{background:"linear-gradient(135deg,#1d4ed8,#2563eb)",border:"none",borderRadius:6,color:"#fff",padding:"5px 14px",cursor:"pointer",fontSize:12,fontWeight:700},
+  hdrR:{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"},
+  vivoBadge:{background:"rgba(239,68,68,0.2)",border:"1px solid #ef4444",borderRadius:20,padding:"2px 8px",fontSize:10,color:"#f87171",fontWeight:700},
+  mini:{fontSize:10,color:"#64748b"},
+  btnAct:{background:"linear-gradient(135deg,#1d4ed8,#2563eb)",border:"none",borderRadius:6,color:"#fff",padding:"4px 12px",cursor:"pointer",fontSize:12,fontWeight:700},
   tabs:{display:"flex",overflowX:"auto",padding:"0 8px",borderTop:"1px solid #1e3a5f"},
   tab:{background:"transparent",border:"none",color:"#64748b",padding:"10px 12px",cursor:"pointer",fontSize:12,fontWeight:700,borderBottom:"2px solid transparent",whiteSpace:"nowrap"},
   tabA:{color:"#f59e0b",borderBottom:"2px solid #f59e0b",background:"rgba(245,158,11,0.07)"},
@@ -496,7 +674,7 @@ const S = {
   chips:{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"},
   chip:{fontSize:11,color:"#94a3b8"},
   tblD:{background:"#0f172a",borderRadius:8,border:"1px solid #1e3a5f",overflow:"hidden"},
-  fD:{display:"grid",gridTemplateColumns:"1fr 1.2fr 1.2fr 0.5fr 0.9fr 0.3fr 0.3fr 0.4fr",padding:"5px 10px",gap:3,borderBottom:"1px solid rgba(255,255,255,0.04)"},
+  fD:{display:"grid",gridTemplateColumns:"1fr 1.1fr 1.1fr 0.5fr 0.8fr 0.25fr 0.25fr 0.35fr",padding:"5px 10px",gap:3,borderBottom:"1px solid rgba(255,255,255,0.04)"},
   hD:{fontSize:9,color:"#475569",fontWeight:700,textTransform:"uppercase"},
   cD:{fontSize:10,color:"#94a3b8"},
   filtros:{display:"flex",flexWrap:"wrap",gap:4,marginBottom:12},
@@ -509,4 +687,15 @@ const S = {
   filaP:{display:"flex",alignItems:"center",padding:"10px 12px",gap:6},
   ladoP:{flex:1,display:"flex",alignItems:"center",gap:6},
   marc:{display:"flex",alignItems:"center",gap:3,minWidth:80,justifyContent:"center",background:"rgba(0,0,0,0.4)",borderRadius:7,padding:"6px 10px",border:"1px solid #1e3a5f"},
+  bonoCard:{background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:10,padding:"12px 14px",marginBottom:10},
+  bonoHdr:{display:"flex",alignItems:"center",gap:10},
+  bonoVal:{display:"flex",alignItems:"center",gap:10,marginTop:8,padding:"8px",background:"rgba(255,255,255,0.03)",borderRadius:8},
+  gridReglas:{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:6},
+  cardRegla:{background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:8,padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center"},
+  debugBox:{background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:8,padding:12},
+  debugRow:{display:"flex",justifyContent:"space-between",padding:"4px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",fontSize:12,color:"#94a3b8"},
+  btnEdit:{background:"linear-gradient(135deg,#1d4ed8,#2563eb)",border:"none",borderRadius:7,color:"#fff",padding:"6px 14px",cursor:"pointer",fontSize:12,fontWeight:700},
+  btnSmall:{background:"linear-gradient(135deg,#1d4ed8,#2563eb)",border:"none",borderRadius:6,color:"#fff",padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:700},
+  lbl:{display:"block",fontSize:11,color:"#64748b",marginBottom:4,textTransform:"uppercase",letterSpacing:1},
+  inp:{width:"100%",background:"rgba(255,255,255,0.08)",border:"1px solid #334155",borderRadius:6,color:"#e2e8f0",padding:"6px 10px",fontSize:13,outline:"none",boxSizing:"border-box"},
 };
