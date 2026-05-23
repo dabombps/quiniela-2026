@@ -144,7 +144,7 @@ export default function App() {
     try {
       const res = await fetch(
         `${WORKER_URL}/proxy/fixtures?league=${LEAGUE_ID}&season=${SEASON}`,
-        { headers: {"x-api-key": API_KEY} }
+        {}
       );
       const rem = res.headers.get("x-ratelimit-requests-remaining");
       if (rem) setReqRestantes(rem);
