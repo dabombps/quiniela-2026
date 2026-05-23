@@ -10,6 +10,7 @@ const SEASON     = 2022;
 // Caché: fixtures cada 5min, eventos 1x/día, topscorers 1x/día
 const CACHE_FIXTURES_MS  = 5  * 60  * 1000;
 const CACHE_EVENTS_MS    = 24 * 60  * 60 * 1000;
+const CACHE_STANDINGS_MS = 24 * 60  * 60 * 1000;
 
 // ─── Reglas ───────────────────────────────────────────────────────────────────
 const REGLAS_DEFAULT = {
@@ -106,10 +107,11 @@ async function apiFetch(path) {
 export default function App() {
   const [partidos,  setPartidos]  = useState(()=>LD("q22_fix",[]));
   const [eventos,   setEventos]   = useState(()=>LD("q22_evs",{}));
+  const [standings, setStandings] = useState(()=>LD("q22_standings",{}));
   const [reglas,    setReglas]    = useState(()=>LD("q22_reglas", REGLAS_DEFAULT));
   const [bonos,     setBonos]     = useState(()=>LD("q22_bonos",{ fairPlay:"", portero:"", goleo:"" }));
 
-  const [estado,    setEstado]    = useState({fixtures:"idle", eventos:"idle"});
+  const [estado,    setEstado]    = useState({fixtures:"idle", eventos:"idle", standings:"idle"});
   const [ultimaAct, setUltimaAct] = useState(null);
   const [tab,       setTab]       = useState("tabla");
   const [filtroFase, setFiltroFase] = useState("TODOS");
@@ -180,7 +182,7 @@ export default function App() {
 
   // Carga inicial
   useEffect(()=>{
-    fetchFixtures().then(()=>{ fetchEventos(); });
+    fetchFixtures().then(()=>{ fetchEventos(); fetchStandings(); });
   },[]);
 
   // Auto-refresh fixtures cada 5 min
@@ -194,6 +196,35 @@ export default function App() {
   useEffect(()=>{
     if (partidos.length>0) fetchEventos();
   },[partidos]);
+
+  // ── 3. Fetch standings / posiciones de grupo (1x por día) ────────────────
+  const fetchStandings = useCallback(async (forzar=false) => {
+    const ahora=Date.now(), ts=LDT("q22_standings");
+    if (!forzar&&Object.keys(standings).length>0&&(ahora-ts)<CACHE_STANDINGS_MS) {
+      addLog(`✅ Standings en caché (${Object.keys(standings).length} equipos)`);
+      return;
+    }
+    setEstado(e=>({...e,standings:"loading"}));
+    addLog("📡 Cargando posiciones de grupo...");
+    try {
+      const data = await apiFetch(`/standings?league=${LEAGUE_ID}&season=${SEASON}`);
+      // data[0].league.standings es array de grupos, cada grupo es array de equipos
+      const mapa = {};
+      const grupos = data[0]?.league?.standings || [];
+      grupos.forEach(grupo => {
+        grupo.forEach(equipo => {
+          mapa[equipo.team.name] = equipo.rank; // 1, 2, 3, 4
+        });
+      });
+      addLog(`✅ Standings cargados: ${Object.keys(mapa).length} equipos`);
+      LS("q22_standings", mapa); LST("q22_standings");
+      setStandings(mapa);
+      setEstado(e=>({...e,standings:"ok"}));
+    } catch(err) {
+      addLog(`❌ Standings: ${err.message}`);
+      setEstado(e=>({...e,standings:"error"}));
+    }
+  }, [standings]);
 
   // ── Calcular tabla ────────────────────────────────────────────────────────
   const eqPorD = {};
@@ -212,6 +243,14 @@ export default function App() {
       s.pt+=r.pt; if(r.diff>0)s.g++;else if(r.diff===0&&!r.ko)s.e++;else s.p_++;
       s.gl+=r.mg; s.am+=r.am; s.ro+=r.ro; s.det.push({par,eq,r});
     });
+  });
+
+  // Posiciones de grupo (standings)
+  Object.entries(standings).forEach(([equipo, rank]) => {
+    const d = DUENOS_2022[equipo];
+    if (!d || !statsD[d]) return;
+    if (rank === 1) statsD[d].pt += reglas.primeroGrupo;
+    else if (rank === 2) statsD[d].pt += reglas.segundoGrupo;
   });
 
   // Bonos especiales
@@ -277,10 +316,13 @@ export default function App() {
             <span style={{fontSize:10,color:pctEventos===100?"#4ade80":pctEventos>0?"#fbbf24":"#64748b"}}>
               🃏 {pctEventos}% eventos
             </span>
+            <span style={{fontSize:10,color:Object.keys(standings).length>0?"#4ade80":"#64748b"}}>
+              📊 {Object.keys(standings).length>0?"standings ✅":"standings ❌"}
+            </span>
             <span style={{fontSize:11,color:todosOk?"#4ade80":hayError?"#f87171":"#64748b"}}>
               {estado.fixtures==="loading"?"⏳":todosOk?`✅ ${jugados.length}J`:"❌"}
             </span>
-            <button onClick={()=>{fetchFixtures(true).then(()=>{fetchEventos(true);})}} style={S.btnAct}>
+            <button onClick={()=>{fetchFixtures(true).then(()=>{fetchEventos(true);fetchStandings(true);})}} style={S.btnAct}>
               ↺
             </button>
           </div>
@@ -543,6 +585,7 @@ export default function App() {
             <div style={S.debugBox}>
               <div style={S.debugRow}><span>Fixtures:</span><span style={{color:estado.fixtures==="ok"?"#4ade80":"#f87171"}}>{estado.fixtures} ({jugados.length} terminados)</span></div>
               <div style={S.debugRow}><span>Eventos/tarjetas:</span><span style={{color:pctEventos===100?"#4ade80":"#fbbf24"}}>{evCargados}/{jugados.length} partidos ({pctEventos}%)</span></div>
+              <div style={S.debugRow}><span>Standings cargados:</span><span style={{color:Object.keys(standings).length>0?"#4ade80":"#f87171"}}>{Object.keys(standings).length} equipos</span></div>
               <div style={S.debugRow}><span>Goleador (Golden Boot):</span><span>{bonos.goleo||"—"}</span></div>
               <div style={S.debugRow}><span>Fair Play:</span><span>{bonos.fairPlay||"—"}</span></div>
               <div style={S.debugRow}><span>Portero:</span><span>{bonos.portero||"—"}</span></div>
@@ -551,7 +594,7 @@ export default function App() {
               <div style={{fontSize:12,color:"#f59e0b",fontWeight:700,marginBottom:6}}>Log de actividad</div>
               {logMsgs.map((l,i)=><div key={i} style={{fontSize:11,color:"#64748b",padding:"2px 0"}}>{l}</div>)}
             </div>
-            <button onClick={()=>{fetchFixtures(true).then(()=>{fetchEventos(true);})}}
+            <button onClick={()=>{fetchFixtures(true).then(()=>{fetchEventos(true);fetchStandings(true);})}}
               style={{...S.btnEdit,marginTop:12,width:"100%",padding:"10px"}}>
               🔄 Forzar actualización completa
             </button>
