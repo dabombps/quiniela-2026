@@ -422,30 +422,7 @@ export default function App() {
 
             {/* Desglose */}
             {tabla.length>0&&(
-              <>
-                <H2 style={{marginTop:20}}>Desglose por Partido</H2>
-                <div style={S.tblD}>
-                  <div style={S.fD}>{["Dueño","Equipo","Rival","Goles","Fase","🟨","🟥","Pts"].map(h=><span key={h} style={S.hD}>{h}</span>)}</div>
-                  {tabla.flatMap(row=>row.det.map((d,i)=>{
-                    const rival=d.r.esL?d.par.teams?.away?.name:d.par.teams?.home?.name;
-                    const sc=d.r.esL?`${d.par.goals.home}–${d.par.goals.away}`:`${d.par.goals.away}–${d.par.goals.home}`;
-                    return(
-                      <div key={`${row.d}-${i}`} style={{...S.fD,background:i%2===0?"rgba(255,255,255,0.03)":"transparent"}}>
-                        <span style={S.cD}>{row.d}</span>
-                        <span style={S.cD}>{fl(d.eq)} {esp(d.eq)}</span>
-                        <span style={S.cD}>{fl(rival)} {esp(rival)}</span>
-                        <span style={S.cD}>{sc}</span>
-                        <span style={{...S.cD,fontSize:9}}>{faseLabel(d.par.league?.round)}</span>
-                        <span style={{...S.cD,color:"#fbbf24"}}>{d.r.am}</span>
-                        <span style={{...S.cD,color:"#f87171"}}>{d.r.ro}</span>
-                        <span style={{...S.cD,fontWeight:700,color:d.r.pt>0?"#4ade80":d.r.pt<0?"#f87171":"#facc15"}}>
-                          {d.r.pt>0?"+":""}{d.r.pt}
-                        </span>
-                      </div>
-                    );
-                  }))}
-                </div>
-              </>
+              <DesglosePartidos tabla={tabla} reglas={reglas}/>
             )}
           </div>
         )}
@@ -811,6 +788,148 @@ function CP({ p, duenos, eventos, reglas }) {
           {rV&&dV&&<PtsDesglose r={rV} dueno={dV} R={reglas} ko={esKO(p.league?.round)}/>}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Desglose de Partidos con filtros ────────────────────────────────────────
+function DesglosePartidos({ tabla, reglas }) {
+  const [filtroJugador, setFiltroJugador] = useState("TODOS");
+  const [filtroFase2,   setFiltroFase2]   = useState("TODOS");
+  const [sortBy,        setSortBy]        = useState("fecha");
+
+  // Flatten all detalle entries
+  const todos = tabla.flatMap(row =>
+    row.det.map(d => ({
+      dueno:    row.d,
+      eq:       d.eq,
+      rival:    d.r.esL ? d.par.teams?.away?.name : d.par.teams?.home?.name,
+      gfavor:   d.r.esL ? d.par.goals?.home : d.par.goals?.away,
+      gcontra:  d.r.esL ? d.par.goals?.away : d.par.goals?.home,
+      diff:     d.r.diff,
+      fase:     faseLabel(d.par.league?.round),
+      fecha:    d.par.fixture?.date || "",
+      am:       d.r.am,
+      ro:       d.r.ro,
+      pt:       d.r.pt,
+      r:        d.r,
+      par:      d.par,
+    }))
+  );
+
+  const jugadores = ["TODOS", ...new Set(todos.map(t=>t.dueno))];
+  const fases2    = ["TODOS", ...new Set(todos.map(t=>t.fase).filter(Boolean))];
+
+  // Filter
+  let filtrados = todos
+    .filter(t => filtroJugador==="TODOS" || t.dueno===filtroJugador)
+    .filter(t => filtroFase2==="TODOS"   || t.fase===filtroFase2);
+
+  // Sort
+  filtrados = [...filtrados].sort((a,b) => {
+    if (sortBy==="fecha")  return a.fecha.localeCompare(b.fecha);
+    if (sortBy==="pts")    return b.pt - a.pt;
+    if (sortBy==="amarillas") return b.am - a.am;
+    if (sortBy==="rojas")  return b.ro - a.ro;
+    if (sortBy==="difgoles") return b.diff - a.diff;
+    return 0;
+  });
+
+  const btnFiltro = (val, actual, set, lbl) => (
+    <button key={val}
+      style={{...S.btnF, ...(actual===val?S.btnFA:{})}}
+      onClick={()=>set(val)}
+    >{lbl||val}</button>
+  );
+
+  const SORTS = [
+    {k:"fecha",    lbl:"📅 Fecha"},
+    {k:"pts",      lbl:"🏆 Pts"},
+    {k:"difgoles", lbl:"⚽ Goles"},
+    {k:"amarillas",lbl:"🟨"},
+    {k:"rojas",    lbl:"🟥"},
+  ];
+
+  return (
+    <div style={{marginTop:24}}>
+      <H2>Desglose por Partido</H2>
+
+      {/* Filtros jugador */}
+      <div style={{marginBottom:8}}>
+        <span style={{fontSize:11,color:"#475569",marginRight:8,textTransform:"uppercase",letterSpacing:1}}>Jugador:</span>
+        <div style={{display:"inline-flex",flexWrap:"wrap",gap:4}}>
+          {jugadores.map(j=>btnFiltro(j, filtroJugador, setFiltroJugador, j==="TODOS"?"Todos":j))}
+        </div>
+      </div>
+
+      {/* Filtros fase */}
+      <div style={{marginBottom:8}}>
+        <span style={{fontSize:11,color:"#475569",marginRight:8,textTransform:"uppercase",letterSpacing:1}}>Fase:</span>
+        <div style={{display:"inline-flex",flexWrap:"wrap",gap:4}}>
+          {fases2.map(f=>btnFiltro(f, filtroFase2, setFiltroFase2, f==="TODOS"?"Todas":f))}
+        </div>
+      </div>
+
+      {/* Ordenar */}
+      <div style={{marginBottom:16}}>
+        <span style={{fontSize:11,color:"#475569",marginRight:8,textTransform:"uppercase",letterSpacing:1}}>Ordenar:</span>
+        <div style={{display:"inline-flex",flexWrap:"wrap",gap:4}}>
+          {SORTS.map(s=>btnFiltro(s.k, sortBy, setSortBy, s.lbl))}
+        </div>
+      </div>
+
+      <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{filtrados.length} partidos</div>
+
+      {/* Cards */}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {filtrados.map((t,i)=>{
+          const fecha = t.fecha ? new Date(t.fecha).toLocaleDateString("es-MX",{day:"2-digit",month:"short",year:"numeric"}) : "";
+          const sc = `${t.gfavor}–${t.gcontra}`;
+          const colPts = t.pt>0?"#4ade80":t.pt<0?"#f87171":"#94a3b8";
+          const bgCard = t.pt>0?"rgba(74,222,128,0.05)":t.pt<0?"rgba(248,113,113,0.05)":"rgba(255,255,255,0.02)";
+          const borderCard = t.pt>0?"rgba(74,222,128,0.2)":t.pt<0?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.06)";
+
+          return (
+            <div key={i} style={{background:bgCard, border:`1px solid ${borderCard}`, borderRadius:10, overflow:"hidden"}}>
+              {/* Meta row */}
+              <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap",padding:"5px 12px",background:"rgba(0,0,0,0.2)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                <span style={{fontSize:10,fontWeight:700,color:"#f59e0b",textTransform:"uppercase",letterSpacing:1,background:"rgba(245,158,11,0.15)",borderRadius:4,padding:"1px 6px"}}>{t.fase}</span>
+                <span style={{fontSize:11,color:"#64748b"}}>{fecha}</span>
+                <span style={{fontSize:11,color:"#f59e0b",fontWeight:700,marginLeft:"auto"}}>
+                  {t.dueno}
+                </span>
+              </div>
+
+              {/* Match row */}
+              <div style={{display:"flex",alignItems:"center",padding:"10px 14px",gap:8}}>
+                {/* Equipo */}
+                <div style={{flex:1,display:"flex",alignItems:"center",gap:6}}>
+                  <span style={{fontSize:22}}>{fl(t.eq)}</span>
+                  <span style={{fontSize:14,fontWeight:700}}>{esp(t.eq)}</span>
+                </div>
+
+                {/* Score */}
+                <div style={{display:"flex",alignItems:"center",gap:4,background:"rgba(0,0,0,0.4)",borderRadius:8,padding:"6px 14px",border:"1px solid rgba(255,255,255,0.1)"}}>
+                  <span style={{fontSize:22,fontWeight:900}}>{t.gfavor}</span>
+                  <span style={{fontSize:14,color:"#475569"}}>–</span>
+                  <span style={{fontSize:22,fontWeight:900}}>{t.gcontra}</span>
+                </div>
+
+                {/* Rival */}
+                <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"flex-end",gap:6}}>
+                  <span style={{fontSize:14,fontWeight:700,color:"#64748b"}}>{esp(t.rival)}</span>
+                  <span style={{fontSize:22}}>{fl(t.rival)}</span>
+                </div>
+              </div>
+
+              {/* Points breakdown */}
+              <div style={{padding:"0 12px 10px"}}>
+                <PtsDesglose r={t.r} dueno={t.dueno} R={reglas} ko={esKO(t.par.league?.round)}/>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
