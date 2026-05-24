@@ -76,8 +76,18 @@ function calcPuntos(p, eq, eventos, R) {
   if (p.goals?.home==null||p.goals?.away==null) return null;
   const mg=esL?p.goals.home:p.goals.away, sg=esL?p.goals.away:p.goals.home, diff=mg-sg;
   const ko=esKO(p.league?.round);
-  let pt = diff>0?(ko?R.eliminatoria:R.ganado):diff===0?(ko?0:R.empate):R.perdido;
-  if (diff>0&&!ko) pt += diff*R.difGoles;
+
+  let pt;
+  if (ko) {
+    // En eliminatorias usar el campo winner (incluye ganador por penales)
+    const ganador = esL ? p.teams?.home?.winner : p.teams?.away?.winner;
+    pt = ganador===true ? R.eliminatoria : 0;
+    // Diferencia de goles también cuenta en eliminatorias
+    if (ganador===true && diff>0) pt += diff*R.difGoles;
+  } else {
+    pt = diff>0 ? R.ganado : diff===0 ? R.empate : R.perdido;
+    if (diff>0) pt += diff*R.difGoles;
+  }
 
   // Tarjetas desde eventos cacheados
   const evs = (eventos[p.fixture.id]||[])
