@@ -45,6 +45,9 @@ const FL = {
   "Brazil":"🇧🇷","Serbia":"🇷🇸","Qatar":"🇶🇦",
 };
 const fl = n => FL[n] || "🏳️";
+const EQUIPOS_ES = {"Qatar": "Qatar", "Ecuador": "Ecuador", "Senegal": "Senegal", "Netherlands": "Países Bajos", "England": "Inglaterra", "Iran": "Irán", "United States": "EE.UU.", "Wales": "Gales", "Argentina": "Argentina", "Saudi Arabia": "Arabia Saudita", "Denmark": "Dinamarca", "Tunisia": "Túnez", "Mexico": "México", "Poland": "Polonia", "France": "Francia", "Australia": "Australia", "Morocco": "Marruecos", "Croatia": "Croacia", "Germany": "Alemania", "Japan": "Japón", "Spain": "España", "Costa Rica": "Costa Rica", "Belgium": "Bélgica", "Canada": "Canadá", "Switzerland": "Suiza", "Cameroon": "Camerún", "Uruguay": "Uruguay", "Korea Republic": "Corea del Sur", "Portugal": "Portugal", "Ghana": "Ghana", "Brazil": "Brasil", "Serbia": "Serbia", "South Korea": "Corea del Sur", "South Africa": "Sudáfrica", "Colombia": "Colombia", "United Arab Emirates": "EAU", "Indonesia": "Indonesia", "New Zealand": "Nueva Zelanda", "Panama": "Panamá", "Venezuela": "Venezuela", "Paraguay": "Paraguay", "Nigeria": "Nigeria", "Egypt": "Egipto", "Algeria": "Argelia", "USA": "EE.UU.", "Turkey": "Turquía", "Ukraine": "Ucrania", "Scotland": "Escocia", "Peru": "Perú", "Chile": "Chile", "Honduras": "Honduras", "El Salvador": "El Salvador", "Iraq": "Irak", "Bolivia": "Bolivia"};
+const esp = n => EQUIPOS_ES[n] || n;
+
 
 const FINAL   = ["FT","AET","PEN","AWD","WO"];
 const VIVO    = ["1H","HT","2H","ET","BT","P","SUSP","INT","LIVE"];
@@ -409,7 +412,7 @@ export default function App() {
                     </div>
                     <div style={{textAlign:"right"}}>
                       {(eqPorD[row.d]||[]).map(eq=>(
-                        <div key={eq} style={{fontSize:11,color:"#94a3b8"}}>{fl(eq)} {eq}</div>
+                        <div key={eq} style={{fontSize:11,color:"#94a3b8"}}>{fl(eq)} {esp(eq)}</div>
                       ))}
                     </div>
                   </div>
@@ -429,8 +432,8 @@ export default function App() {
                     return(
                       <div key={`${row.d}-${i}`} style={{...S.fD,background:i%2===0?"rgba(255,255,255,0.03)":"transparent"}}>
                         <span style={S.cD}>{row.d}</span>
-                        <span style={S.cD}>{fl(d.eq)} {d.eq}</span>
-                        <span style={S.cD}>{fl(rival)} {rival}</span>
+                        <span style={S.cD}>{fl(d.eq)} {esp(d.eq)}</span>
+                        <span style={S.cD}>{fl(rival)} {esp(rival)}</span>
                         <span style={S.cD}>{sc}</span>
                         <span style={{...S.cD,fontSize:9}}>{faseLabel(d.par.league?.round)}</span>
                         <span style={{...S.cD,color:"#fbbf24"}}>{d.r.am}</span>
@@ -700,7 +703,7 @@ export default function App() {
                   <div key={p} style={{...S.fD,gridTemplateColumns:"1fr 2fr",background:i%2===0?"rgba(255,255,255,0.03)":"transparent",alignItems:"center"}}>
                     <span style={{...S.cD,fontWeight:700,color:"#f59e0b",fontSize:13}}>{p}</span>
                     <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"4px 0"}}>
-                      {eqs.map(eq=><span key={eq} style={{background:"rgba(255,255,255,0.06)",borderRadius:20,padding:"1px 8px",fontSize:11,color:"#cbd5e1"}}>{fl(eq)} {eq}</span>)}
+                      {eqs.map(eq=><span key={eq} style={{background:"rgba(255,255,255,0.06)",borderRadius:20,padding:"1px 8px",fontSize:11,color:"#cbd5e1"}}>{fl(eq)} {esp(eq)}</span>)}
                     </div>
                   </div>
                 );
@@ -716,7 +719,7 @@ export default function App() {
                   {allTeams.map(eq=>(
                     <div key={eq} style={S.filaEq}>
                       <span style={{fontSize:20,width:28,textAlign:"center"}}>{fl(eq)}</span>
-                      <span style={{flex:1,fontSize:13,fontWeight:600}}>{eq}</span>
+                      <span style={{flex:1,fontSize:13,fontWeight:600}}>{esp(eq)}</span>
                       <input
                         style={{...S.inputD,width:160}}
                         value={editDueno[eq]!==undefined ? editDueno[eq] : (duenos[eq]||"")}
@@ -773,7 +776,7 @@ function CP({ p, duenos, eventos, reglas }) {
         <div style={S.ladoP}>
           <span style={{fontSize:22}}>{fl(local)}</span>
           <div>
-            <div style={{fontSize:13,fontWeight:700}}>{local}</div>
+            <div style={{fontSize:13,fontWeight:700}}>{esp(local)}</div>
             {dL&&<div style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>{dL}</div>}
           </div>
         </div>
@@ -784,7 +787,7 @@ function CP({ p, duenos, eventos, reglas }) {
         </div>
         <div style={{...S.ladoP,justifyContent:"flex-end"}}>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:13,fontWeight:700}}>{visita}</div>
+            <div style={{fontSize:13,fontWeight:700}}>{esp(visita)}</div>
             {dV&&<div style={{fontSize:11,color:"#f59e0b",fontWeight:700}}>{dV}</div>}
           </div>
           <span style={{fontSize:22}}>{fl(visita)}</span>
@@ -818,24 +821,41 @@ function PtsDesglose({ r, dueno, R, ko }) {
   const ptAm   = r.am * R.amarilla;
   const ptRo   = r.ro * R.roja;
   const color  = r.pt>=0 ? "#4ade80" : "#f87171";
+  const bgColor = r.pt>0 ? "rgba(74,222,128,0.08)" : r.pt<0 ? "rgba(248,113,113,0.08)" : "rgba(255,255,255,0.04)";
 
   const partes = [];
-  if (r.diff>0)        partes.push({lbl: ko?"🏆 victoria KO":"✅ victoria",  val: ptBase, c:"#4ade80"});
-  else if(r.diff===0)  partes.push({lbl: ko?"— empate KO":"➖ empate",       val: ptBase, c:"#facc15"});
-  else                 partes.push({lbl: "❌ derrota",                       val: ptBase, c:"#64748b"});
-  if (ptDif>0)         partes.push({lbl: `⚽ +${r.diff} gol dif`,           val: ptDif,  c:"#34d399"});
-  if (r.am>0)          partes.push({lbl: `🟨 ×${r.am}`,                     val: ptAm,   c:"#fbbf24"});
-  if (r.ro>0)          partes.push({lbl: `🟥 ×${r.ro}`,                     val: ptRo,   c:"#f87171"});
+  if (r.diff>0)        partes.push({lbl: ko?"🏆 Eliminatoria":"✅ Victoria",  val: ptBase, c:"#4ade80"});
+  else if(r.diff===0)  partes.push({lbl: ko?"— Elim. empate":"➖ Empate",     val: ptBase, c:"#facc15"});
+  else                 partes.push({lbl: "❌ Derrota",                        val: ptBase, c:"#64748b"});
+  if (ptDif>0)         partes.push({lbl: `⚽ ${r.diff} gol${r.diff>1?"es":""} dif`, val: ptDif, c:"#34d399"});
+  if (r.am>0)          partes.push({lbl: `🟨 ${r.am} amarilla${r.am>1?"s":""}`, val: ptAm, c:"#fbbf24"});
+  if (r.ro>0)          partes.push({lbl: `🟥 ${r.ro} roja${r.ro>1?"s":""}`,   val: ptRo,  c:"#f87171"});
 
   return (
-    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
-      <span style={{fontSize:12,fontWeight:700,color,minWidth:80}}>{dueno}:</span>
+    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",
+      background:bgColor, borderRadius:8, padding:"6px 10px",
+      border:`1px solid ${r.pt>0?"rgba(74,222,128,0.2)":r.pt<0?"rgba(248,113,113,0.2)":"rgba(255,255,255,0.06)"}`
+    }}>
+      <span style={{fontSize:12,fontWeight:800,color,minWidth:78}}>{dueno}</span>
+      <span style={{fontSize:11,color:"#475569"}}>→</span>
       {partes.map((p,i)=>(
-        <span key={i} style={{fontSize:11,color:p.c,background:"rgba(255,255,255,0.05)",borderRadius:4,padding:"1px 6px"}}>
-          {p.lbl} {p.val>0?"+":""}{p.val}
+        <span key={i} style={{
+          fontSize:11, color:p.c,
+          background:"rgba(0,0,0,0.25)",
+          borderRadius:20, padding:"2px 8px",
+          fontWeight:600,
+        }}>
+          {p.lbl} <strong>{p.val>0?"+":""}{p.val}</strong>
         </span>
       ))}
-      <span style={{fontSize:12,fontWeight:900,color,marginLeft:4}}>= {r.pt>0?"+":""}{r.pt} pts</span>
+      <span style={{
+        fontSize:13, fontWeight:900, color,
+        marginLeft:"auto",
+        background:"rgba(0,0,0,0.3)",
+        borderRadius:6, padding:"2px 8px",
+      }}>
+        {r.pt>0?"+":""}{r.pt} pts
+      </span>
     </div>
   );
 }
