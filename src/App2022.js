@@ -89,16 +89,23 @@ function calcPuntos(p, eq, eventos, R) {
   return { pt, mg, sg, diff, ko, am, ro, esL };
 }
 
-// ─── API fetch helper ─────────────────────────────────────────────────────────
-async function apiFetch(path) {
+// ─── API fetch helper con info de caché ──────────────────────────────────────
+async function apiFetchWithCache(path) {
   const res = await fetch(`${WORKER_URL}/proxy${path}`, {
-    signal: AbortSignal.timeout(15000)
+    signal: AbortSignal.timeout(20000)
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
   if (data.errors && Object.keys(data.errors).length>0)
     throw new Error(Object.values(data.errors)[0]);
-  return data.response || [];
+  const cache = res.headers.get("X-Cache") || "MISS";
+  const age   = res.headers.get("X-Cache-Age");
+  return { data: data.response || [], cache, age };
+}
+// Backwards compat
+async function apiFetch(path) {
+  const { data } = await apiFetchWithCache(path);
+  return data;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -131,8 +138,8 @@ export default function App() {
     setEstado(e=>({...e,fixtures:"loading"}));
     addLog("📡 Cargando fixtures 2022...");
     try {
-      const lista = await apiFetch(`/fixtures?league=${LEAGUE_ID}&season=${SEASON}`);
-      addLog(`✅ ${lista.length} partidos cargados`);
+      const { data: lista, cache } = await apiFetchWithCache(`/fixtures?league=${LEAGUE_ID}&season=${SEASON}`);
+      addLog(`${cache==="HIT"?"💾 Caché":"🌐 API"} fixtures: ${lista.length} partidos`);
       LS("q22_fix",lista); LST("q22_fix");
       setPartidos(lista); setUltimaAct(new Date());
       setEstado(e=>({...e,fixtures:"ok"}));
@@ -142,41 +149,44 @@ export default function App() {
     }
   }, [partidos.length]);
 
-  // ── 2. Fetch eventos/tarjetas (1x por día, por lotes de 10) ───────────────
+  // ── 2. Fetch eventos — lotes de 20 IDs por request (KV cache en servidor) ──
   const fetchEventos = useCallback(async (forzar=false) => {
     const ahora=Date.now(), ts=LDT("q22_evs");
     if (!forzar&&(ahora-ts)<CACHE_EVENTS_MS&&Object.keys(eventos).length>0) {
-      addLog(`✅ Eventos en caché (${Object.keys(eventos).length} partidos)`);
+      addLog(`💾 Eventos en caché local (${Object.keys(eventos).length} partidos)`);
       return;
     }
     const terminados = partidos.filter(p=>FINAL.includes(p.fixture?.status?.short));
-    const sinEvs = terminados.filter(p=>!eventos[p.fixture.id]);
-    if (sinEvs.length===0) { addLog("✅ Todos los eventos ya en caché"); return; }
-
-    setEstado(e=>({...e,eventos:"loading"}));
-    addLog(`📡 Cargando eventos de ${sinEvs.length} partidos (lotes de 10)...`);
-
-    const nuevosEvs = {...eventos};
-    // Procesar en lotes de 10 para no gastar todas las requests de una
-    const lote = sinEvs.slice(0,10);
-    let cargados = 0;
-
-    for (const p of lote) {
-      try {
-        const evData = await apiFetch(`/fixtures?id=${p.fixture.id}`);
-        const evs = evData[0]?.events || [];
-        nuevosEvs[p.fixture.id] = evs;
-        cargados++;
-        // pequeña pausa para no saturar
-        await new Promise(r=>setTimeout(r,200));
-      } catch {}
+    if (terminados.length===0) return;
+    const todos = forzar ? terminados : terminados.filter(p=>!eventos[p.fixture.id]);
+    if (todos.length===0) {
+      addLog("✅ Todos los eventos ya cargados");
+      setEstado(e=>({...e,eventos:"ok"}));
+      return;
     }
-
+    setEstado(e=>({...e,eventos:"loading"}));
+    addLog(`📡 Eventos: ${todos.length} partidos en lotes de 20...`);
+    const nuevosEvs = {...eventos};
+    let cargados=0, reqAPI=0;
+    const LOTE = 20;
+    for (let i=0; i<todos.length; i+=LOTE) {
+      const lote = todos.slice(i, i+LOTE);
+      const ids  = lote.map(p=>p.fixture.id).join("-");
+      try {
+        const { data: evData, cache } = await apiFetchWithCache(`/fixtures?ids=${ids}`);
+        evData.forEach(p => { nuevosEvs[p.fixture.id] = p.events||[]; cargados++; });
+        if (cache!=="HIT") reqAPI++;
+        addLog(`${cache==="HIT"?"💾":"🌐"} Lote ${Math.floor(i/LOTE)+1}: ${lote.length} partidos`);
+        await new Promise(r=>setTimeout(r,300));
+      } catch(e) {
+        addLog(`⚠️ Error lote ${Math.floor(i/LOTE)+1}: ${e.message}`);
+        break;
+      }
+    }
     LS("q22_evs",nuevosEvs); LST("q22_evs");
     setEventos(nuevosEvs);
     setEstado(e=>({...e,eventos:"ok"}));
-    const pendientes = sinEvs.length - cargados;
-    addLog(`✅ ${cargados} eventos cargados${pendientes>0?` · ${pendientes} pendientes (mañana)`:"· ¡Todos listos!"}`);
+    addLog(`✅ ${cargados}/${terminados.length} eventos · ${reqAPI} requests a API`);
   }, [partidos, eventos]);
 
 
@@ -207,7 +217,8 @@ export default function App() {
     setEstado(e=>({...e,standings:"loading"}));
     addLog("📡 Cargando posiciones de grupo...");
     try {
-      const data = await apiFetch(`/standings?league=${LEAGUE_ID}&season=${SEASON}`);
+      const { data, cache } = await apiFetchWithCache(`/standings?league=${LEAGUE_ID}&season=${SEASON}`);
+      addLog(`${cache==="HIT"?"💾 Caché":"🌐 API"} standings`);
       // data[0].league.standings es array de grupos, cada grupo es array de equipos
       const mapa = {};
       const grupos = data[0]?.league?.standings || [];
@@ -584,6 +595,8 @@ export default function App() {
             <H2>🔧 Debug</H2>
             <div style={S.debugBox}>
               <div style={S.debugRow}><span>Fixtures:</span><span style={{color:estado.fixtures==="ok"?"#4ade80":"#f87171"}}>{estado.fixtures} ({jugados.length} terminados)</span></div>
+              <div style={S.debugRow}><span>Caché servidor (KV):</span><span style={{color:"#4ade80"}}>Cloudflare Worker KV</span></div>
+              <div style={S.debugRow}><span>Caché local:</span><span>{Object.keys(eventos).length} eventos guardados</span></div>
               <div style={S.debugRow}><span>Eventos/tarjetas:</span><span style={{color:pctEventos===100?"#4ade80":"#fbbf24"}}>{evCargados}/{jugados.length} partidos ({pctEventos}%)</span></div>
               <div style={S.debugRow}><span>Standings cargados:</span><span style={{color:Object.keys(standings).length>0?"#4ade80":"#f87171"}}>{Object.keys(standings).length} equipos</span></div>
               <div style={S.debugRow}><span>Goleador (Golden Boot):</span><span>{bonos.goleo||"—"}</span></div>
