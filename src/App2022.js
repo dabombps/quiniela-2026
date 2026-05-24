@@ -24,10 +24,8 @@ const REGLAS_DEFAULT = {
   fairPlay:10, portero:3, goleo:5,
 };
 
-// ─── Dueños 2022 ──────────────────────────────────────────────────────────────
-// DUENOS_2022 kept as alias for backwards compat
-const DUENOS_2022 = DUENOS_DEFAULT;
-const _UNUSED = {
+// ─── Dueños DEFAULT 2022 — modificables desde panel Admin ────────────────────
+const DUENOS_DEFAULT = {
   "Argentina":"Buka","Denmark":"Buka","Korea Republic":"Buka","Wales":"Buka","Iran":"Buka",
   "Belgium":"Oralia","Croatia":"Oralia","Tunisia":"Oralia","Canada":"Oralia","Switzerland":"Oralia",
   "Portugal":"Melo","Uruguay":"Melo","Japan":"Melo","Costa Rica":"Melo","Ghana":"Melo",
