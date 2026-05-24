@@ -655,50 +655,63 @@ export default function App() {
         {/* ══ ADMIN ══ */}
         {tab==="admin"&&(
           <div>
-            <H2>🔐 Admin — Configurar Participantes</H2>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+              <H2>⚙️ Equipos por Participante</H2>
+              {!adminAuth
+                ? <button style={{...S.btnEdit,fontSize:12}} onClick={()=>setAdminAuth("pending")}>🔐 Editar (Admin)</button>
+                : <div style={{display:"flex",gap:8}}>
+                    <button style={{...S.btnSmall,background:"#64748b"}} onClick={()=>{if(window.confirm("¿Restaurar asignación original?")) resetDuenos();}}>↺ Default</button>
+                    <button style={{...S.btnSmall,background:"#dc2626"}} onClick={()=>{setAdminAuth(false);setAdminPass("");}}>🔒 Salir</button>
+                  </div>
+              }
+            </div>
 
-            {!adminAuth ? (
-              /* Login */
-              <div style={{maxWidth:360}}>
-                <p style={{color:"#64748b",fontSize:13,marginBottom:16}}>
-                  Ingresa la contraseña para modificar participantes y equipos.
-                </p>
+            {/* Login popup si adminAuth==="pending" */}
+            {adminAuth==="pending"&&(
+              <div style={{background:"#0f172a",border:"1px solid #f59e0b",borderRadius:10,padding:16,marginBottom:16,maxWidth:380}}>
+                <p style={{color:"#94a3b8",fontSize:13,marginBottom:10}}>Ingresa la contraseña de admin:</p>
                 <div style={{display:"flex",gap:8}}>
-                  <input
-                    type="password"
-                    style={{...S.inp,flex:1}}
-                    placeholder="Contraseña..."
-                    value={adminPass}
-                    onChange={e=>setAdminPass(e.target.value)}
-                    onKeyDown={e=>{ if(e.key==="Enter"){ if(adminPass===ADMIN_PASS){setAdminAuth(true);setAdminError("");}else{setAdminError("Contraseña incorrecta");} }}}
+                  <input type="password" style={{...S.inp,flex:1}} placeholder="Contraseña..."
+                    value={adminPass} onChange={e=>setAdminPass(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter"){ if(adminPass===ADMIN_PASS){setAdminAuth(true);setAdminError("");}else{setAdminError("Incorrecta");} }}}
+                    autoFocus
                   />
-                  <button style={{...S.btnEdit,padding:"6px 18px"}} onClick={()=>{
+                  <button style={{...S.btnEdit,padding:"6px 16px"}} onClick={()=>{
                     if(adminPass===ADMIN_PASS){setAdminAuth(true);setAdminError("");}
                     else setAdminError("Contraseña incorrecta");
                   }}>Entrar</button>
                 </div>
-                {adminError&&<p style={{color:"#f87171",fontSize:13,marginTop:8}}>{adminError}</p>}
+                {adminError&&<p style={{color:"#f87171",fontSize:12,marginTop:6}}>{adminError}</p>}
               </div>
-            ) : (
-              /* Admin panel */
-              <div>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                  <p style={{color:"#4ade80",fontSize:13}}>✅ Acceso admin activo</p>
-                  <div style={{display:"flex",gap:8}}>
-                    <button style={{...S.btnSmall,background:"#64748b"}} onClick={()=>{
-                      if(window.confirm("¿Restaurar asignación original?")) resetDuenos();
-                    }}>↺ Restaurar default</button>
-                    <button style={{...S.btnSmall,background:"#dc2626"}} onClick={()=>{setAdminAuth(false);setAdminPass("");}}>
-                      🔒 Cerrar sesión
-                    </button>
+            )}
+
+            {adminAuth===true&&<p style={{color:"#4ade80",fontSize:12,marginBottom:12}}>✅ Modo edición activo — los cambios aplican inmediatamente</p>}
+
+            {/* Tabla visible para todos */}
+            <H2>Resumen por Participante</H2>
+            <div style={S.tblD}>
+              <div style={{...S.fD,gridTemplateColumns:"1fr 2fr"}}>
+                <span style={S.hD}>Participante</span>
+                <span style={S.hD}>Equipos asignados</span>
+              </div>
+              {[...new Set(Object.values(duenos).filter(Boolean))].sort().map((p,i)=>{
+                const eqs = Object.entries(duenos).filter(([,d])=>d===p).map(([eq])=>eq);
+                return(
+                  <div key={p} style={{...S.fD,gridTemplateColumns:"1fr 2fr",background:i%2===0?"rgba(255,255,255,0.03)":"transparent",alignItems:"center"}}>
+                    <span style={{...S.cD,fontWeight:700,color:"#f59e0b",fontSize:13}}>{p}</span>
+                    <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"4px 0"}}>
+                      {eqs.map(eq=><span key={eq} style={{background:"rgba(255,255,255,0.06)",borderRadius:20,padding:"1px 8px",fontSize:11,color:"#cbd5e1"}}>{fl(eq)} {eq}</span>)}
+                    </div>
                   </div>
-                </div>
+                );
+              })}
+            </div>
 
-                <H2>Asignar Equipos a Participantes</H2>
-                <p style={{color:"#64748b",fontSize:13,marginBottom:12}}>
-                  Cambia el dueño de cada equipo. Los cambios aplican inmediatamente a todos los cálculos.
-                </p>
-
+            {/* Edición solo con admin */}
+            {adminAuth===true&&(
+              <div style={{marginTop:20}}>
+                <H2>Reasignar Equipos</H2>
+                <p style={{color:"#64748b",fontSize:13,marginBottom:10}}>Cambia el participante de cada equipo:</p>
                 <div style={S.listaEq}>
                   {allTeams.map(eq=>(
                     <div key={eq} style={S.filaEq}>
@@ -711,9 +724,8 @@ export default function App() {
                         list="lista-participantes"
                         onChange={e=>setEditDueno(prev=>({...prev,[eq]:e.target.value}))}
                         onBlur={e=>{
-                          const val = e.target.value.trim();
-                          const newD = {...duenos,[eq]:val};
-                          saveDuenos(newD);
+                          const val=e.target.value.trim();
+                          saveDuenos({...duenos,[eq]:val});
                           setEditDueno(prev=>{const n={...prev};delete n[eq];return n;});
                         }}
                       />
@@ -722,25 +734,6 @@ export default function App() {
                   <datalist id="lista-participantes">
                     {allParticipantes.map(n=><option key={n} value={n}/>)}
                   </datalist>
-                </div>
-
-                <H2 style={{marginTop:20}}>Resumen por Participante</H2>
-                <div style={S.tblD}>
-                  <div style={{...S.fD,gridTemplateColumns:"1fr 2fr"}}>
-                    <span style={S.hD}>Participante</span>
-                    <span style={S.hD}>Equipos asignados</span>
-                  </div>
-                  {[...new Set(Object.values(duenos).filter(Boolean))].sort().map((p,i)=>{
-                    const eqs = Object.entries(duenos).filter(([,d])=>d===p).map(([eq])=>eq);
-                    return(
-                      <div key={p} style={{...S.fD,gridTemplateColumns:"1fr 2fr",background:i%2===0?"rgba(255,255,255,0.03)":"transparent",alignItems:"center"}}>
-                        <span style={{...S.cD,fontWeight:700,color:"#f59e0b",fontSize:13}}>{p}</span>
-                        <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"4px 0"}}>
-                          {eqs.map(eq=><span key={eq} style={{background:"rgba(255,255,255,0.06)",borderRadius:20,padding:"1px 8px",fontSize:11,color:"#cbd5e1"}}>{fl(eq)} {eq}</span>)}
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               </div>
             )}
