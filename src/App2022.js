@@ -7,6 +7,9 @@ const WORKER_URL = "https://quiniela-proxy.dabombps.workers.dev";
 const LEAGUE_ID  = 1;
 const SEASON     = 2022;
 
+// Admin
+const ADMIN_PASS = "Contraseña";
+
 // Caché: fixtures cada 5min, eventos 1x/día, topscorers 1x/día
 const CACHE_FIXTURES_MS  = 5  * 60  * 1000;
 const CACHE_EVENTS_MS    = 24 * 60  * 60 * 1000;
@@ -22,7 +25,9 @@ const REGLAS_DEFAULT = {
 };
 
 // ─── Dueños 2022 ──────────────────────────────────────────────────────────────
-const DUENOS_2022 = {
+// DUENOS_2022 kept as alias for backwards compat
+const DUENOS_2022 = DUENOS_DEFAULT;
+const _UNUSED = {
   "Argentina":"Buka","Denmark":"Buka","Korea Republic":"Buka","Wales":"Buka","Iran":"Buka",
   "Belgium":"Oralia","Croatia":"Oralia","Tunisia":"Oralia","Canada":"Oralia","Switzerland":"Oralia",
   "Portugal":"Melo","Uruguay":"Melo","Japan":"Melo","Costa Rica":"Melo","Ghana":"Melo",
@@ -127,6 +132,12 @@ export default function App() {
   const [standings, setStandings] = useState(()=>LD("q22_standings",{}));
   const [reglas,    setReglas]    = useState(()=>({ ...REGLAS_DEFAULT, ...LD("q22_reglas",{}) }));
   const [bonos,     setBonos]     = useState(()=>({ fairPlay:"", portero:"", goleo:"", ...LD("q22_bonos",{}) }));
+  const [duenos,    setDuenosState] = useState(()=>({ ...DUENOS_DEFAULT, ...LD("q22_duenos",{}) }));
+  // Admin
+  const [adminAuth,  setAdminAuth]  = useState(false);
+  const [adminPass,  setAdminPass]  = useState("");
+  const [adminError, setAdminError] = useState("");
+  const [editDueno,  setEditDueno]  = useState({}); // temp edit state
 
   const [estado,    setEstado]    = useState({fixtures:"idle", eventos:"idle", standings:"idle"});
   const [ultimaAct, setUltimaAct] = useState(null);
@@ -256,7 +267,7 @@ export default function App() {
 
   // ── Calcular tabla ────────────────────────────────────────────────────────
   const eqPorD = {};
-  Object.entries(DUENOS_2022).forEach(([eq,d])=>{ if(!eqPorD[d])eqPorD[d]=[]; eqPorD[d].push(eq); });
+  Object.entries(duenos).forEach(([eq,d])=>{ if(!eqPorD[d])eqPorD[d]=[]; eqPorD[d].push(eq); });
 
   const statsD = {};
   Object.keys(eqPorD).forEach(d=>{ statsD[d]={pt:0,g:0,e:0,p_:0,gl:0,am:0,ro:0,det:[]}; });
@@ -265,7 +276,7 @@ export default function App() {
 
   jugados.forEach(par=>{
     [par.teams?.home?.name,par.teams?.away?.name].forEach(eq=>{
-      const d=DUENOS_2022[eq]; if(!d||!statsD[d]) return;
+      const d=duenos[eq]; if(!d||!statsD[d]) return;
       const r=calcPuntos(par,eq,eventos,reglas); if(!r) return;
       const s=statsD[d];
       s.pt+=r.pt; if(r.diff>0)s.g++;else if(r.diff===0&&!r.ko)s.e++;else s.p_++;
@@ -275,7 +286,7 @@ export default function App() {
 
   // Posiciones de grupo (standings)
   Object.entries(standings).forEach(([equipo, rank]) => {
-    const d = DUENOS_2022[equipo];
+    const d = duenos[equipo];
     if (!d || !statsD[d]) return;
     if (rank === 1) statsD[d].pt += reglas.primeroGrupo;
     else if (rank === 2) statsD[d].pt += reglas.segundoGrupo;
@@ -284,17 +295,17 @@ export default function App() {
   // Bonos especiales
   // Fair Play
   if (bonos.fairPlay) {
-    const d = DUENOS_2022[bonos.fairPlay];
+    const d = duenos[bonos.fairPlay];
     if (d&&statsD[d]) statsD[d].pt += reglas.fairPlay;
   }
   // Portero
   if (bonos.portero) {
-    const d = DUENOS_2022[bonos.portero];
+    const d = duenos[bonos.portero];
     if (d&&statsD[d]) statsD[d].pt += reglas.portero;
   }
   // Goleo (manual)
   if (bonos.goleo) {
-    const d = DUENOS_2022[bonos.goleo];
+    const d = duenos[bonos.goleo];
     if (d&&statsD[d]) statsD[d].pt += reglas.goleo;
   }
 
@@ -315,12 +326,19 @@ export default function App() {
   const todosOk = estado.fixtures==="ok";
   const hayError = Object.values(estado).some(v=>v==="error");
 
+  // ── Admin helpers ─────────────────────────────────────────────────────────
+  const saveDuenos = (newD) => { setDuenosState(newD); LS("q22_duenos", newD); };
+  const resetDuenos = () => { saveDuenos({...DUENOS_DEFAULT}); };
+  const allTeams = [...new Set(partidos.flatMap(p=>[p.teams?.home?.name,p.teams?.away?.name].filter(Boolean)))].sort();
+  const allParticipantes = [...new Set(Object.values(duenos).filter(Boolean))].sort();
+
   const TABS = [
     {id:"tabla",   lbl:"🏆 Tabla"},
     {id:"partidos",lbl:`📅 Partidos (${jugados.length})`},
     {id:"bonos",   lbl:"🎖 Bonos"},
     {id:"reglas",  lbl:"📋 Reglas"},
     {id:"debug",   lbl:"🔧 Debug"},
+    {id:"admin",   lbl:"🔐 Admin"},
   ];
 
   return (
@@ -442,7 +460,7 @@ export default function App() {
             </div>
             {jugFilt.length===0?<p style={{color:"#64748b",fontSize:13}}>Sin partidos.</p>
               :jugFilt.slice().reverse().map(p=>(
-                <CP key={p.fixture.id} p={p} duenos={DUENOS_2022} eventos={eventos} reglas={reglas}/>
+                <CP key={p.fixture.id} p={p} duenos={duenos} eventos={eventos} reglas={reglas}/>
               ))
             }
           </div>
@@ -490,7 +508,7 @@ export default function App() {
                     <span style={{fontSize:22}}>{bonos.goleo?fl(bonos.goleo):"❓"}</span>
                     <div>
                       <div style={{fontWeight:700}}>{bonos.goleo||"No capturado aún"}</div>
-                      {bonos.goleo&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {DUENOS_2022[bonos.goleo]||"Sin dueño"} +{reglas.goleo} pts</div>}
+                      {bonos.goleo&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {duenos[bonos.goleo]||"Sin dueño"} +{reglas.goleo} pts</div>}
                     </div>
                   </div>
                 </div>
@@ -511,7 +529,7 @@ export default function App() {
                   <span style={{fontSize:22}}>{bonos.fairPlay?fl(bonos.fairPlay):"❓"}</span>
                   <div>
                     <div style={{fontWeight:700}}>{bonos.fairPlay||"No capturado aún"}</div>
-                    {bonos.fairPlay&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {DUENOS_2022[bonos.fairPlay]||"Sin dueño"} +{reglas.fairPlay} pts</div>}
+                    {bonos.fairPlay&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {duenos[bonos.fairPlay]||"Sin dueño"} +{reglas.fairPlay} pts</div>}
                   </div>
                 </div>
               </div>
@@ -531,7 +549,7 @@ export default function App() {
                   <span style={{fontSize:22}}>{bonos.portero?fl(bonos.portero):"❓"}</span>
                   <div>
                     <div style={{fontWeight:700}}>{bonos.portero||"No capturado aún"}</div>
-                    {bonos.portero&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {DUENOS_2022[bonos.portero]||"Sin dueño"} +{reglas.portero} pts</div>}
+                    {bonos.portero&&<div style={{fontSize:12,color:"#f59e0b",fontWeight:700}}>→ {duenos[bonos.portero]||"Sin dueño"} +{reglas.portero} pts</div>}
                   </div>
                 </div>
               </div>
@@ -545,9 +563,9 @@ export default function App() {
               </div>
               {tabla.map((row,i)=>{
                 let b=0;
-                if (bonos.fairPlay&&DUENOS_2022[bonos.fairPlay]===row.d) b+=reglas.fairPlay;
-                if (bonos.portero&&DUENOS_2022[bonos.portero]===row.d) b+=reglas.portero;
-                if (bonos.goleo&&DUENOS_2022[bonos.goleo]===row.d) b+=reglas.goleo;
+                if (bonos.fairPlay&&duenos[bonos.fairPlay]===row.d) b+=reglas.fairPlay;
+                if (bonos.portero&&duenos[bonos.portero]===row.d) b+=reglas.portero;
+                if (bonos.goleo&&duenos[bonos.goleo]===row.d) b+=reglas.goleo;
                 const pp = row.pt-b;
                 return(
                   <div key={row.d} style={{...S.fD,gridTemplateColumns:"1fr 1fr 1fr 1fr",background:i%2===0?"rgba(255,255,255,0.03)":"transparent"}}>
@@ -568,7 +586,12 @@ export default function App() {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
               <H2>Reglas de Puntuación</H2>
               {!editReglas
-                ?<button style={S.btnEdit} onClick={()=>{setReglasTmp({...reglas});setEditReglas(true);}}>✏️ Editar</button>
+                ?<button style={S.btnEdit} onClick={()=>{
+                    if(adminAuth){ setReglasTmp({...reglas}); setEditReglas(true); }
+                    else{ setTab("admin"); }
+                  }}>
+                  {adminAuth?"✏️ Editar":"🔐 Editar (Admin)"}
+                </button>
                 :<div style={{display:"flex",gap:8}}>
                   <button style={{...S.btnEdit,background:"#64748b"}} onClick={()=>setEditReglas(false)}>Cancelar</button>
                   <button style={{...S.btnEdit,background:"#16a34a"}} onClick={guardarReglas}>✅ Guardar</button>
@@ -628,6 +651,101 @@ export default function App() {
               style={{...S.btnEdit,marginTop:12,width:"100%",padding:"10px"}}>
               🔄 Forzar actualización completa
             </button>
+          </div>
+        )}
+
+        {/* ══ ADMIN ══ */}
+        {tab==="admin"&&(
+          <div>
+            <H2>🔐 Admin — Configurar Participantes</H2>
+
+            {!adminAuth ? (
+              /* Login */
+              <div style={{maxWidth:360}}>
+                <p style={{color:"#64748b",fontSize:13,marginBottom:16}}>
+                  Ingresa la contraseña para modificar participantes y equipos.
+                </p>
+                <div style={{display:"flex",gap:8}}>
+                  <input
+                    type="password"
+                    style={{...S.inp,flex:1}}
+                    placeholder="Contraseña..."
+                    value={adminPass}
+                    onChange={e=>setAdminPass(e.target.value)}
+                    onKeyDown={e=>{ if(e.key==="Enter"){ if(adminPass===ADMIN_PASS){setAdminAuth(true);setAdminError("");}else{setAdminError("Contraseña incorrecta");} }}}
+                  />
+                  <button style={{...S.btnEdit,padding:"6px 18px"}} onClick={()=>{
+                    if(adminPass===ADMIN_PASS){setAdminAuth(true);setAdminError("");}
+                    else setAdminError("Contraseña incorrecta");
+                  }}>Entrar</button>
+                </div>
+                {adminError&&<p style={{color:"#f87171",fontSize:13,marginTop:8}}>{adminError}</p>}
+              </div>
+            ) : (
+              /* Admin panel */
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+                  <p style={{color:"#4ade80",fontSize:13}}>✅ Acceso admin activo</p>
+                  <div style={{display:"flex",gap:8}}>
+                    <button style={{...S.btnSmall,background:"#64748b"}} onClick={()=>{
+                      if(window.confirm("¿Restaurar asignación original?")) resetDuenos();
+                    }}>↺ Restaurar default</button>
+                    <button style={{...S.btnSmall,background:"#dc2626"}} onClick={()=>{setAdminAuth(false);setAdminPass("");}}>
+                      🔒 Cerrar sesión
+                    </button>
+                  </div>
+                </div>
+
+                <H2>Asignar Equipos a Participantes</H2>
+                <p style={{color:"#64748b",fontSize:13,marginBottom:12}}>
+                  Cambia el dueño de cada equipo. Los cambios aplican inmediatamente a todos los cálculos.
+                </p>
+
+                <div style={S.listaEq}>
+                  {allTeams.map(eq=>(
+                    <div key={eq} style={S.filaEq}>
+                      <span style={{fontSize:20,width:28,textAlign:"center"}}>{fl(eq)}</span>
+                      <span style={{flex:1,fontSize:13,fontWeight:600}}>{eq}</span>
+                      <input
+                        style={{...S.inputD,width:160}}
+                        value={editDueno[eq]!==undefined ? editDueno[eq] : (duenos[eq]||"")}
+                        placeholder="Participante..."
+                        list="lista-participantes"
+                        onChange={e=>setEditDueno(prev=>({...prev,[eq]:e.target.value}))}
+                        onBlur={e=>{
+                          const val = e.target.value.trim();
+                          const newD = {...duenos,[eq]:val};
+                          saveDuenos(newD);
+                          setEditDueno(prev=>{const n={...prev};delete n[eq];return n;});
+                        }}
+                      />
+                    </div>
+                  ))}
+                  <datalist id="lista-participantes">
+                    {allParticipantes.map(n=><option key={n} value={n}/>)}
+                  </datalist>
+                </div>
+
+                <H2 style={{marginTop:20}}>Resumen por Participante</H2>
+                <div style={S.tblD}>
+                  <div style={{...S.fD,gridTemplateColumns:"1fr 2fr"}}>
+                    <span style={S.hD}>Participante</span>
+                    <span style={S.hD}>Equipos asignados</span>
+                  </div>
+                  {[...new Set(Object.values(duenos).filter(Boolean))].sort().map((p,i)=>{
+                    const eqs = Object.entries(duenos).filter(([,d])=>d===p).map(([eq])=>eq);
+                    return(
+                      <div key={p} style={{...S.fD,gridTemplateColumns:"1fr 2fr",background:i%2===0?"rgba(255,255,255,0.03)":"transparent",alignItems:"center"}}>
+                        <span style={{...S.cD,fontWeight:700,color:"#f59e0b",fontSize:13}}>{p}</span>
+                        <div style={{display:"flex",flexWrap:"wrap",gap:4,padding:"4px 0"}}>
+                          {eqs.map(eq=><span key={eq} style={{background:"rgba(255,255,255,0.06)",borderRadius:20,padding:"1px 8px",fontSize:11,color:"#cbd5e1"}}>{fl(eq)} {eq}</span>)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
