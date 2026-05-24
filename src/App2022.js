@@ -108,8 +108,8 @@ export default function App() {
   const [partidos,  setPartidos]  = useState(()=>LD("q22_fix",[]));
   const [eventos,   setEventos]   = useState(()=>LD("q22_evs",{}));
   const [standings, setStandings] = useState(()=>LD("q22_standings",{}));
-  const [reglas,    setReglas]    = useState(()=>LD("q22_reglas", REGLAS_DEFAULT));
-  const [bonos,     setBonos]     = useState(()=>LD("q22_bonos",{ fairPlay:"", portero:"", goleo:"" }));
+  const [reglas,    setReglas]    = useState(()=>({ ...REGLAS_DEFAULT, ...LD("q22_reglas",{}) }));
+  const [bonos,     setBonos]     = useState(()=>({ fairPlay:"", portero:"", goleo:"", ...LD("q22_bonos",{}) }));
 
   const [estado,    setEstado]    = useState({fixtures:"idle", eventos:"idle", standings:"idle"});
   const [ultimaAct, setUltimaAct] = useState(null);
@@ -436,7 +436,7 @@ export default function App() {
                   <div style={{fontWeight:900,fontSize:15}}>Campeón Goleo (Golden Boot)</div>
                   <div style={{fontSize:12,color:"#64748b"}}>+{reglas.goleo} pts — captura manual al final del torneo</div>
                 </div>
-                {!editBonos&&<button style={{...S.btnSmall,marginLeft:"auto"}} onClick={()=>{setBonosTmp({...bonos});setEditBonos(true);}}>✏️ Editar</button>}
+                {!editBonos&&<button style={{...S.btnSmall,marginLeft:"auto"}} onClick={()=>{setBonosTmp({ fairPlay:"", portero:"", goleo:"", ...bonos });setEditBonos(true);}}>✏️ Editar</button>}
                 {editBonos&&(
                   <div style={{marginLeft:"auto",display:"flex",gap:6}}>
                     <button style={{...S.btnSmall,background:"#64748b"}} onClick={()=>setEditBonos(false)}>Cancelar</button>
