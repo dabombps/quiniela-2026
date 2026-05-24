@@ -420,26 +420,16 @@ export default function App() {
               ))}
             </div>
 
-            {/* Desglose */}
-            {tabla.length>0&&(
-              <DesglosePartidos tabla={tabla} reglas={reglas}/>
-            )}
+
           </div>
         )}
 
         {/* ══ PARTIDOS ══ */}
         {tab==="partidos"&&(
           <div>
-            <H2>Partidos ({jugados.length})</H2>
-            <div style={S.filtros}>
-              {fases.map(f=>(
-                <button key={f} style={{...S.btnF,...(filtroFase===f?S.btnFA:{})}} onClick={()=>setFiltroFase(f)}>{f}</button>
-              ))}
-            </div>
-            {jugFilt.length===0?<p style={{color:"#64748b",fontSize:13}}>Sin partidos.</p>
-              :jugFilt.slice().reverse().map(p=>(
-                <CP key={p.fixture.id} p={p} duenos={duenos} eventos={eventos} reglas={reglas}/>
-              ))
+            {tabla.length===0
+              ? <p style={{color:"#64748b",fontSize:13}}>Ve a ⚙️ Admin y asigna participantes para ver el desglose.</p>
+              : <DesglosePartidos tabla={tabla} reglas={reglas}/>
             }
           </div>
         )}
@@ -797,10 +787,18 @@ function DesglosePartidos({ tabla, reglas }) {
   const [filtroJugador, setFiltroJugador] = useState("TODOS");
   const [filtroFase2,   setFiltroFase2]   = useState("TODOS");
   const [sortBy,        setSortBy]        = useState("fecha");
+  const [sortDir,       setSortDir]       = useState("asc"); // asc | desc
 
-  // Flatten all detalle entries
+  const handleSort = (key) => {
+    if (sortBy === key) setSortDir(d => d==="asc"?"desc":"asc");
+    else { setSortBy(key); setSortDir("asc"); }
+  };
+
+  // Flatten all detalle entries — solo partidos terminados
   const todos = tabla.flatMap(row =>
-    row.det.map(d => ({
+    row.det
+      .filter(d => ["FT","AET","PEN","AWD","WO"].includes(d.par.fixture?.status?.short))
+      .map(d => ({
       dueno:    row.d,
       eq:       d.eq,
       rival:    d.r.esL ? d.par.teams?.away?.name : d.par.teams?.home?.name,
@@ -825,14 +823,15 @@ function DesglosePartidos({ tabla, reglas }) {
     .filter(t => filtroJugador==="TODOS" || t.dueno===filtroJugador)
     .filter(t => filtroFase2==="TODOS"   || t.fase===filtroFase2);
 
-  // Sort
+  // Sort with direction
   filtrados = [...filtrados].sort((a,b) => {
-    if (sortBy==="fecha")  return a.fecha.localeCompare(b.fecha);
-    if (sortBy==="pts")    return b.pt - a.pt;
-    if (sortBy==="amarillas") return b.am - a.am;
-    if (sortBy==="rojas")  return b.ro - a.ro;
-    if (sortBy==="difgoles") return b.diff - a.diff;
-    return 0;
+    let cmp = 0;
+    if (sortBy==="fecha")     cmp = a.fecha.localeCompare(b.fecha);
+    else if (sortBy==="pts")      cmp = a.pt - b.pt;
+    else if (sortBy==="amarillas") cmp = a.am - b.am;
+    else if (sortBy==="rojas")     cmp = a.ro - b.ro;
+    else if (sortBy==="difgoles")  cmp = a.diff - b.diff;
+    return sortDir==="asc" ? cmp : -cmp;
   });
 
   const btnFiltro = (val, actual, set, lbl) => (
@@ -874,7 +873,14 @@ function DesglosePartidos({ tabla, reglas }) {
       <div style={{marginBottom:16}}>
         <span style={{fontSize:11,color:"#475569",marginRight:8,textTransform:"uppercase",letterSpacing:1}}>Ordenar:</span>
         <div style={{display:"inline-flex",flexWrap:"wrap",gap:4}}>
-          {SORTS.map(s=>btnFiltro(s.k, sortBy, setSortBy, s.lbl))}
+          {SORTS.map(s=>(
+            <button key={s.k}
+              style={{...S.btnF,...(sortBy===s.k?S.btnFA:{})}}
+              onClick={()=>handleSort(s.k)}
+            >
+              {s.lbl}{sortBy===s.k ? (sortDir==="asc"?" ↑":" ↓") : ""}
+            </button>
+          ))}
         </div>
       </div>
 
