@@ -149,7 +149,7 @@ export default function App() {
     }
   }, [partidos.length]);
 
-  // ── 2. Fetch eventos — lotes de 20 IDs por request (KV cache en servidor) ──
+  // ── 2. Fetch eventos — 1 request por partido, KV caché 24h en servidor ──────
   const fetchEventos = useCallback(async (forzar=false) => {
     const ahora=Date.now(), ts=LDT("q22_evs");
     if (!forzar&&(ahora-ts)<CACHE_EVENTS_MS&&Object.keys(eventos).length>0) {
@@ -158,35 +158,42 @@ export default function App() {
     }
     const terminados = partidos.filter(p=>FINAL.includes(p.fixture?.status?.short));
     if (terminados.length===0) return;
-    const todos = forzar ? terminados : terminados.filter(p=>!eventos[p.fixture.id]);
+    // Sin KV: cargar solo los que faltan. Con KV: el servidor cachea y no gasta requests reales
+    const todos = terminados.filter(p=>forzar||!eventos[p.fixture.id]);
     if (todos.length===0) {
       addLog("✅ Todos los eventos ya cargados");
       setEstado(e=>({...e,eventos:"ok"}));
       return;
     }
     setEstado(e=>({...e,eventos:"loading"}));
-    addLog(`📡 Eventos: ${todos.length} partidos en lotes de 20...`);
+    addLog(`📡 Cargando ${todos.length} partidos (1 request c/u, KV caché en servidor)...`);
     const nuevosEvs = {...eventos};
-    let cargados=0, reqAPI=0;
-    const LOTE = 20;
-    for (let i=0; i<todos.length; i+=LOTE) {
-      const lote = todos.slice(i, i+LOTE);
-      const ids  = lote.map(p=>p.fixture.id).join("-");
+    let cargados=0, reqAPI=0, reqCache=0;
+    for (const p of todos) {
       try {
-        const { data: evData, cache } = await apiFetchWithCache(`/fixtures?ids=${ids}`);
-        evData.forEach(p => { nuevosEvs[p.fixture.id] = p.events||[]; cargados++; });
-        if (cache!=="HIT") reqAPI++;
-        addLog(`${cache==="HIT"?"💾":"🌐"} Lote ${Math.floor(i/LOTE)+1}: ${lote.length} partidos`);
-        await new Promise(r=>setTimeout(r,300));
+        const { data: evData, cache } = await apiFetchWithCache(`/fixtures?id=${p.fixture.id}`);
+        nuevosEvs[p.fixture.id] = evData[0]?.events || [];
+        cargados++;
+        if (cache==="HIT") reqCache++; else reqAPI++;
+        // Solo log cada 10 para no saturar el log
+        if (cargados % 10 === 0 || cargados === todos.length) {
+          addLog(`${cache==="HIT"?"💾":"🌐"} ${cargados}/${todos.length} · API:${reqAPI} Caché:${reqCache}`);
+        }
+        // Pausa pequeña entre requests
+        await new Promise(r=>setTimeout(r,150));
       } catch(e) {
-        addLog(`⚠️ Error lote ${Math.floor(i/LOTE)+1}: ${e.message}`);
-        break;
+        addLog(`⚠️ Error partido ${p.fixture.id}: ${e.message}`);
+        // Si es rate limit, parar
+        if (e.message.includes("limit") || e.message.includes("429")) {
+          addLog("🛑 Límite de requests alcanzado — reintenta mañana");
+          break;
+        }
       }
     }
     LS("q22_evs",nuevosEvs); LST("q22_evs");
     setEventos(nuevosEvs);
     setEstado(e=>({...e,eventos:"ok"}));
-    addLog(`✅ ${cargados}/${terminados.length} eventos · ${reqAPI} requests a API`);
+    addLog(`✅ Completado: ${cargados}/${terminados.length} partidos · ${reqAPI} API · ${reqCache} KV caché`);
   }, [partidos, eventos]);
 
 
