@@ -803,11 +803,39 @@ function CP({ p, duenos, eventos, reglas }) {
         </div>
       )}
       {(rL||rV)&&(
-        <div style={{display:"flex",gap:8,padding:"4px 12px 10px",flexWrap:"wrap"}}>
-          {rL&&dL&&<span style={{fontSize:12,fontWeight:700,color:rL.pt>=0?"#4ade80":"#f87171"}}>{dL}: {rL.pt>0?"+":""}{rL.pt} pts</span>}
-          {rV&&dV&&<span style={{fontSize:12,fontWeight:700,color:rV.pt>=0?"#4ade80":"#f87171"}}>{dV}: {rV.pt>0?"+":""}{rV.pt} pts</span>}
+        <div style={{display:"flex",flexDirection:"column",gap:4,padding:"4px 12px 10px"}}>
+          {rL&&dL&&<PtsDesglose r={rL} dueno={dL} R={reglas} ko={esKO(p.league?.round)}/>}
+          {rV&&dV&&<PtsDesglose r={rV} dueno={dV} R={reglas} ko={esKO(p.league?.round)}/>}
         </div>
       )}
+    </div>
+  );
+}
+
+function PtsDesglose({ r, dueno, R, ko }) {
+  const ptBase = r.diff>0 ? (ko?R.eliminatoria:R.ganado) : r.diff===0 ? (ko?0:R.empate) : R.perdido;
+  const ptDif  = (r.diff>0) ? r.diff*R.difGoles : 0;
+  const ptAm   = r.am * R.amarilla;
+  const ptRo   = r.ro * R.roja;
+  const color  = r.pt>=0 ? "#4ade80" : "#f87171";
+
+  const partes = [];
+  if (r.diff>0)        partes.push({lbl: ko?"🏆 victoria KO":"✅ victoria",  val: ptBase, c:"#4ade80"});
+  else if(r.diff===0)  partes.push({lbl: ko?"— empate KO":"➖ empate",       val: ptBase, c:"#facc15"});
+  else                 partes.push({lbl: "❌ derrota",                       val: ptBase, c:"#64748b"});
+  if (ptDif>0)         partes.push({lbl: `⚽ +${r.diff} gol dif`,           val: ptDif,  c:"#34d399"});
+  if (r.am>0)          partes.push({lbl: `🟨 ×${r.am}`,                     val: ptAm,   c:"#fbbf24"});
+  if (r.ro>0)          partes.push({lbl: `🟥 ×${r.ro}`,                     val: ptRo,   c:"#f87171"});
+
+  return (
+    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+      <span style={{fontSize:12,fontWeight:700,color,minWidth:80}}>{dueno}:</span>
+      {partes.map((p,i)=>(
+        <span key={i} style={{fontSize:11,color:p.c,background:"rgba(255,255,255,0.05)",borderRadius:4,padding:"1px 6px"}}>
+          {p.lbl} {p.val>0?"+":""}{p.val}
+        </span>
+      ))}
+      <span style={{fontSize:12,fontWeight:900,color,marginLeft:4}}>= {r.pt>0?"+":""}{r.pt} pts</span>
     </div>
   );
 }
