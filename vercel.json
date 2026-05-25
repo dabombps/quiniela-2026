@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/familia", "destination": "/index.html" },
+    { "source": "/familia/(.*)", "destination": "/index.html" },
+    { "source": "/amigos", "destination": "/index.html" },
+    { "source": "/amigos/(.*)", "destination": "/index.html" },
+    { "source": "/test", "destination": "/index.html" },
+    { "source": "/test/(.*)", "destination": "/index.html" }
+  ]
+}
