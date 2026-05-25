@@ -10,7 +10,7 @@ if (path.startsWith('/familia')) {
 } else if (path.startsWith('/amigos')) {
   App = React.lazy(() => import('./App2026').then(m => ({ default: (props) => m.default({ ...props, quinielaId: 'amigos' }) })));
 } else if (path.startsWith('/test')) {
-  App = React.lazy(() => import('./App2026').then(m => ({ default: (props) => m.default({ ...props, quinielaId: 'test' }) })));
+  App = React.lazy(() => import('./App2026Test'));
 } else {
   App = React.lazy(() => import('./App2022'));
 }
