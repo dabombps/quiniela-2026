@@ -374,6 +374,14 @@ export default function App() {
             </button>
           </div>
         </div>
+        {/* Navegación entre quinielas */}
+        <div style={{padding:"3px 16px",background:"rgba(0,0,0,0.3)",display:"flex",gap:12,alignItems:"center",borderTop:"1px solid #1e3a5f"}}>
+          <span style={{fontSize:10,color:"#475569"}}>Quinielas:</span>
+          <a href="/" style={{fontSize:11,color:"#f59e0b",fontWeight:700,textDecoration:"none"}}>🔍 2022</a>
+          <a href="/test" style={{fontSize:11,color:"#64748b",fontWeight:700,textDecoration:"none"}}>🧪 Test</a>
+          <a href="/familia" style={{fontSize:11,color:"#64748b",fontWeight:700,textDecoration:"none"}}>🏠 Familia</a>
+          <a href="/amigos" style={{fontSize:11,color:"#64748b",fontWeight:700,textDecoration:"none"}}>👥 Amigos</a>
+        </div>
         <nav style={S.tabs}>
           {TABS.map(t=>(
             <button key={t.id} style={{...S.tab,...(tab===t.id?S.tabA:{})}} onClick={()=>setTab(t.id)}>{t.lbl}</button>
