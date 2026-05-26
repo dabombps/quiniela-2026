@@ -1,29 +1,31 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import App2022 from './App2022';
+import App2026 from './App2026';
+import App2026Test from './App2026Test';
 
-// Router simple basado en pathname
+// Router basado en pathname
 const path = window.location.pathname;
 
-let App;
-if (path.startsWith('/familia')) {
-  App = React.lazy(() => import('./App2026').then(m => ({ default: (props) => m.default({ ...props, quinielaId: 'familia' }) })));
-} else if (path.startsWith('/amigos')) {
-  App = React.lazy(() => import('./App2026').then(m => ({ default: (props) => m.default({ ...props, quinielaId: 'amigos' }) })));
-} else if (path.startsWith('/test')) {
-  App = React.lazy(() => import('./App2026Test'));
+let AppComponent;
+let appProps = {};
+
+if (path === '/test' || path.startsWith('/test/')) {
+  AppComponent = App2026Test;
+} else if (path === '/familia' || path.startsWith('/familia/')) {
+  AppComponent = App2026;
+  appProps = { quinielaId: 'familia' };
+} else if (path === '/amigos' || path.startsWith('/amigos/')) {
+  AppComponent = App2026;
+  appProps = { quinielaId: 'amigos' };
 } else {
-  App = React.lazy(() => import('./App2022'));
+  // Default: 2022
+  AppComponent = App2022;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
   <React.StrictMode>
-    <React.Suspense fallback={
-      <div style={{minHeight:"100vh",background:"#060d1a",display:"flex",alignItems:"center",justifyContent:"center",color:"#f59e0b",fontFamily:"sans-serif",fontSize:18}}>
-        ⚽ Cargando...
-      </div>
-    }>
-      <App />
-    </React.Suspense>
+    <AppComponent {...appProps} />
   </React.StrictMode>
 );
