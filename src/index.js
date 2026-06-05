@@ -4,29 +4,26 @@ import App2022 from './App2022';
 import App2026 from './App2026';
 import App2026Test from './App2026Test';
 
-// Router basado en hash (#/familia, #/amigos, #/test)
-// Ventaja: no necesita configuración de servidor
-const hash = window.location.hash; // ej: "#/familia"
-const path = hash.replace('#', ''); // ej: "/familia"
+function getApp() {
+  const hash = window.location.hash.replace('#', '');
+  if (hash.startsWith('/test'))    return { Component: App2026Test, props: {} };
+  if (hash.startsWith('/familia')) return { Component: App2026, props: { quinielaId: 'familia' } };
+  if (hash.startsWith('/amigos'))  return { Component: App2026, props: { quinielaId: 'amigos' } };
+  return { Component: App2022, props: {} };
+}
 
-let AppComponent;
-let appProps = {};
+function Router() {
+  const [current, setCurrent] = React.useState(getApp);
 
-if (path.startsWith('/test')) {
-  AppComponent = App2026Test;
-} else if (path.startsWith('/familia')) {
-  AppComponent = App2026;
-  appProps = { quinielaId: 'familia' };
-} else if (path.startsWith('/amigos')) {
-  AppComponent = App2026;
-  appProps = { quinielaId: 'amigos' };
-} else {
-  AppComponent = App2022;
+  React.useEffect(() => {
+    const onHash = () => setCurrent(getApp());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  const { Component, props } = current;
+  return <Component {...props} />;
 }
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
-root.render(
-  <React.StrictMode>
-    <AppComponent {...appProps} />
-  </React.StrictMode>
-);
+root.render(<React.StrictMode><Router /></React.StrictMode>);
