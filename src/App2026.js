@@ -327,7 +327,7 @@ export default function App({ quinielaId = "familia" }) {
           <div style={S.logo}>
             <span style={{fontSize:28}}>⚽</span>
             <div>
-              <div style={{...S.logoT, background:`linear-gradient(90deg,${QUINIELA_COLOR},#ef4444)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+              <div style={{fontSize:22,fontWeight:900,letterSpacing:4,color:QUINIELA_COLOR}}>
                 QUINIELA 2026
               </div>
               <div style={S.logoS}>
