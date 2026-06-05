@@ -355,10 +355,17 @@ export default function App({ quinielaId = "familia" }) {
         {/* Enlace a la otra quiniela */}
         <div style={{padding:"4px 16px",background:"rgba(0,0,0,0.2)",display:"flex",gap:12,alignItems:"center"}}>
           <span style={{fontSize:11,color:"#475569"}}>Cambiar quiniela:</span>
-          <a href="#/" style={{fontSize:11,color:"#64748b",fontWeight:700,textDecoration:"none"}}>🔍 2022</a>
-          <a href="#/test" style={{fontSize:11,color:QUINIELA_ID==="test"?QUINIELA_COLOR:"#64748b",fontWeight:700,textDecoration:"none"}}>🧪 Test</a>
-          <a href="#/familia" style={{fontSize:11,color:QUINIELA_ID==="familia"?QUINIELA_COLOR:"#64748b",fontWeight:700,textDecoration:"none"}}>🏠 Familia</a>
-          <a href="#/amigos" style={{fontSize:11,color:QUINIELA_ID==="amigos"?QUINIELA_COLOR:"#64748b",fontWeight:700,textDecoration:"none"}}>👥 Amigos</a>
+          {[
+            {h:"#/",       lbl:"🔍 2022"},
+            {h:"#/test",   lbl:"🧪 Test"},
+            {h:"#/familia",lbl:"🏠 Familia"},
+            {h:"#/amigos", lbl:"👥 Amigos"},
+          ].map(n=>(
+            <span key={n.h} onClick={()=>{window.location.hash=n.h;}}
+              style={{fontSize:11,color:n.h==="#/"+QUINIELA_ID?QUINIELA_COLOR:"#64748b",fontWeight:700,cursor:"pointer",padding:"2px 4px"}}>
+              {n.lbl}
+            </span>
+          ))}
         </div>
         <nav style={S.tabs}>
           {TABS.map(t=>(
