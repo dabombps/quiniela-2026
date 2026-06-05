@@ -397,8 +397,8 @@ export default function App({ quinielaId = "familia" }) {
                       <div>
                         <div style={{fontSize:22}}>{med(row.pos)}</div>
                         <div style={{fontSize:20,fontWeight:900}}>{row.d}</div>
-                        <div style={{...S.bigPts,background:`linear-gradient(90deg,${QUINIELA_COLOR},#ef4444)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-                          {row.pt}<span style={{fontSize:12,fontWeight:400,marginLeft:4,WebkitTextFillColor:"#94a3b8"}}>pts</span>
+                        <div style={{...S.bigPts,color:QUINIELA_COLOR}}>
+                          {row.pt}<span style={{fontSize:12,fontWeight:400,marginLeft:4,color:"#94a3b8"}}>pts</span>
                         </div>
                         <div style={S.chips}>
                           <span style={S.chip}>✅ {row.g}G</span>
