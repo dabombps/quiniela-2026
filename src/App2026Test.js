@@ -455,10 +455,17 @@ export default function App() {
         {/* Nav */}
         <div style={{padding:"3px 16px",background:"rgba(0,0,0,0.3)",display:"flex",gap:12,alignItems:"center",borderTop:"1px solid #1e3a5f"}}>
           <span style={{fontSize:10,color:"#475569"}}>Quinielas:</span>
-          <a href="#/" style={{fontSize:11,color:"#64748b",fontWeight:700,textDecoration:"none"}}>🔍 2022</a>
-          <a href="#/test" style={{fontSize:11,color:COLOR,fontWeight:700,textDecoration:"none"}}>🧪 Test</a>
-          <a href="#/familia" style={{fontSize:11,color:"#64748b",fontWeight:700,textDecoration:"none"}}>🏠 Familia</a>
-          <a href="#/amigos" style={{fontSize:11,color:"#64748b",fontWeight:700,textDecoration:"none"}}>👥 Amigos</a>
+          {[
+            {h:"#/",       lbl:"🔍 2022",    active:false},
+            {h:"#/test",   lbl:"🧪 Test",    active:true},
+            {h:"#/familia",lbl:"🏠 Familia", active:false},
+            {h:"#/amigos", lbl:"👥 Amigos",  active:false},
+          ].map(n=>(
+            <span key={n.h} onClick={()=>{window.location.hash=n.h;}}
+              style={{fontSize:11,color:n.active?COLOR:"#64748b",fontWeight:700,cursor:"pointer",padding:"2px 4px"}}>
+              {n.lbl}
+            </span>
+          ))}
         </div>
         <nav style={S.tabs}>
           {TABS.map(t=>(
