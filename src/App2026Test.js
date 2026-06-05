@@ -437,7 +437,7 @@ export default function App() {
           <div style={S.logo}>
             <span style={{fontSize:28}}>🧪</span>
             <div>
-              <div style={{fontSize:20,fontWeight:900,letterSpacing:3,background:`linear-gradient(90deg,${COLOR},#ef4444)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+              <div style={{fontSize:20,fontWeight:900,letterSpacing:3,background:`linear-gradient(90deg,${COLOR},#ef4444)`}}>
                 QUINIELA TEST
               </div>
               <div style={{fontSize:10,color:"#475569",letterSpacing:1}}>
@@ -522,8 +522,8 @@ export default function App() {
                         <div>
                           <div style={{fontSize:22}}>{med(row.pos)}</div>
                           <div style={{fontSize:20,fontWeight:900}}>{row.d}</div>
-                          <div style={{fontSize:32,fontWeight:900,background:`linear-gradient(90deg,${COLOR},#ec4899)`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
-                            {row.pt}<span style={{fontSize:12,WebkitTextFillColor:"#94a3b8",marginLeft:4}}>pts</span>
+                          <div style={{fontSize:32,fontWeight:900,background:`linear-gradient(90deg,${COLOR},#ec4899)`}}>
+                            {row.pt}<span style={{fontSize:12,color:"#94a3b8",marginLeft:4}}>pts</span>
                           </div>
                           <div style={S.chips}>
                             <span style={S.chip}>✅{row.g}G</span>
