@@ -435,7 +435,7 @@ export default function App({ quinielaId = "familia" }) {
                         </div>
                       </div>
                       <div style={{textAlign:"right",maxWidth:180}}>
-                        {(eqPorD[row.d]||[]).map(eq=>(
+                        {[...(eqPorD[row.d]||[])].reverse().map(eq=>(
                           <div key={eq} style={{fontSize:11,color:"#94a3b8"}}>{fl(eq)} {esp(eq)}</div>
                         ))}
                       </div>
