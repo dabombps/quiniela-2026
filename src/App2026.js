@@ -33,7 +33,7 @@ const DUENOS_FAMILIA_DEFAULT = {
   "Curaçao":"Leo","Saudi Arabia":"Leo","Tunisia":"Leo","Egypt":"Leo",
   "Senegal":"Leo","Japan":"Leo","Belgium":"Leo","Argentina":"Leo",
   "Iraq":"Carlos","New Zealand":"Carlos","Algeria":"Carlos","Czech Republic":"Carlos",
-  "Turkey":"Carlos","United States":"Carlos","USA":"Carlos","Germany":"Carlos","Brazil":"Carlos",
+  "Turkey":"Carlos","United States":"Carlos","Germany":"Carlos","Brazil":"Carlos",
   "Cape Verde":"Marioly","South Africa":"Marioly","Iran":"Marioly","Bosnia":"Marioly",
   "Austria":"Marioly","Switzerland":"Marioly","Norway":"Marioly","France":"Marioly",
   "Uzbekistan":"Rodrigo","Qatar":"Rodrigo","Australia":"Rodrigo","Canada":"Rodrigo",
@@ -142,8 +142,15 @@ const LDT = k     => { try { return parseInt(localStorage.getItem(k+"_ts")||"0")
 const LST = k     => { try { localStorage.setItem(k+"_ts", String(Date.now())); } catch {} };
 
 // ─── Cálculo puntos ───────────────────────────────────────────────────────────
+// Normalize team names that API may return differently
+function normalizeName(n) {
+  const map = {"USA":"United States","South Korea":"Korea Republic","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast","IR Iran":"Iran","Korea DPR":"North Korea"};
+  return map[n] || n;
+}
 function calcPuntos(p, eq, eventos, R) {
-  const esL = p.teams?.home?.name===eq, esV = p.teams?.away?.name===eq;
+  const homeN = normalizeName(p.teams?.home?.name);
+  const awayN = normalizeName(p.teams?.away?.name);
+  const esL = homeN===eq, esV = awayN===eq;
   if (!esL&&!esV) return null;
   if (p.goals?.home==null||p.goals?.away==null) return null;
   const mg=esL?p.goals.home:p.goals.away, sg=esL?p.goals.away:p.goals.home, diff=mg-sg;
@@ -298,7 +305,7 @@ export default function App({ quinielaId = "familia" }) {
   const enVivo  = partidos.filter(p=>VIVO.includes(p.fixture?.status?.short));
 
   jugados.forEach(par=>{
-    [par.teams?.home?.name,par.teams?.away?.name].forEach(eq=>{
+    [normalizeName(par.teams?.home?.name),normalizeName(par.teams?.away?.name)].forEach(eq=>{
       const d=duenos[eq]; if(!d||!statsD[d]) return;
       const r=calcPuntos(par,eq,eventos,reglas); if(!r) return;
       const s=statsD[d];
