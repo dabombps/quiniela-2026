@@ -28,7 +28,23 @@ const REGLAS_DEFAULT = {
   fairPlay:10, portero:3, goleo:5,
 };
 
-// ─── Equipos 2026 (se asignan después del sorteo en Admin) ───────────────────
+// ─── Asignaciones Quiniela Familia (precargadas) ─────────────────────────────
+const DUENOS_FAMILIA_DEFAULT = {
+  "Curaçao":"Leo","Saudi Arabia":"Leo","Tunisia":"Leo","Egypt":"Leo",
+  "Senegal":"Leo","Japan":"Leo","Belgium":"Leo","Argentina":"Leo",
+  "Iraq":"Carlos","New Zealand":"Carlos","Algeria":"Carlos","Czech Republic":"Carlos",
+  "Turkey":"Carlos","United States":"Carlos","Germany":"Carlos","Brazil":"Carlos",
+  "Cape Verde":"Marioly","South Africa":"Marioly","Iran":"Marioly","Bosnia":"Marioly",
+  "Austria":"Marioly","Switzerland":"Marioly","Norway":"Marioly","France":"Marioly",
+  "Uzbekistan":"Rodrigo","Qatar":"Rodrigo","Australia":"Rodrigo","Canada":"Rodrigo",
+  "Croatia":"Rodrigo","Ecuador":"Rodrigo","Colombia":"Rodrigo","England":"Rodrigo",
+  "Jordan":"Melo","Panama":"Melo","Korea Republic":"Melo","Scotland":"Melo",
+  "Sweden":"Melo","Uruguay":"Melo","Netherlands":"Melo","Portugal":"Melo",
+  "Haiti":"Oralia","DR Congo":"Oralia","Ghana":"Oralia","Ivory Coast":"Oralia",
+  "Paraguay":"Oralia","Mexico":"Oralia","Morocco":"Oralia","Spain":"Oralia",
+};
+
+// ─── Equipos 2026 ─────────────────────────────────────────────────────────────
 // Los 48 países clasificados al Mundial 2026
 const EQUIPOS_2026 = [
   // CONCACAF (incluye hosts con clasificación automática)
@@ -72,7 +88,7 @@ const EQUIPOS_ES = {
   "Egypt":"Egipto","South Africa":"Sudáfrica","Ivory Coast":"Costa de Marfil",
   "Cameroon":"Camerún","DR Congo":"R.D. Congo","Ghana":"Ghana",
   "Tunisia":"Túnez","Mali":"Mali","Algeria":"Argelia",
-  "New Zealand":"Nueva Zelanda",
+  "New Zealand":"Nueva Zelanda","Curaçao":"Curaçao","Cape Verde":"Cabo Verde","Haiti":"Haití","DR Congo":"R.D. Congo","Bosnia":"Bosnia y Herz.","Norway":"Noruega","Sweden":"Suecia",
   // Aliases que puede usar la API
   "USA":"EE.UU.","Korea Republic":"Corea del Sur","Côte d'Ivoire":"Costa de Marfil",
   "Wales":"Gales","Iran":"Irán","Senegal":"Senegal",
@@ -95,7 +111,7 @@ const FL = {
   "Iraq":"🇮🇶","Indonesia":"🇮🇩","Oman":"🇴🇲",
   "Morocco":"🇲🇦","Senegal":"🇸🇳","Nigeria":"🇳🇬","Egypt":"🇪🇬","South Africa":"🇿🇦",
   "Ivory Coast":"🇨🇮","Côte d'Ivoire":"🇨🇮","Cameroon":"🇨🇲","DR Congo":"🇨🇩",
-  "Ghana":"🇬🇭","Tunisia":"🇹🇳","Mali":"🇲🇱","Algeria":"🇩🇿","New Zealand":"🇳🇿",
+  "Ghana":"🇬🇭","Tunisia":"🇹🇳","Mali":"🇲🇱","Algeria":"🇩🇿","New Zealand":"🇳🇿","Curaçao":"🇨🇼","Cape Verde":"🇨🇻","Haiti":"🇭🇹","DR Congo":"🇨🇩","Bosnia":"🇧🇦","Norway":"🇳🇴","Sweden":"🇸🇪",
   "Wales":"🏴󠁧󠁢󠁷󠁬󠁳󠁿",
 };
 const fl = n => FL[n] || "🏳️";
@@ -173,7 +189,8 @@ export default function App({ quinielaId = "familia" }) {
   const [standings, setStandings] = useState(()=>LD(`${KV_PREFIX}_std`,{}));
   const [reglas,    setReglas]    = useState(()=>({...REGLAS_DEFAULT,...LD(`${KV_PREFIX}_reg`,{})}));
   const [bonos,     setBonos]     = useState(()=>({fairPlay:"",portero:"",goleo:"",...LD(`${KV_PREFIX}_bon`,{})}));
-  const [duenos,    setDuenosState] = useState(()=>({...LD(`${KV_PREFIX}_due`,{})}));
+  const defaultDuenos = QUINIELA_ID === 'familia' ? DUENOS_FAMILIA_DEFAULT : {};
+  const [duenos,    setDuenosState] = useState(()=>({ ...defaultDuenos, ...LD(`${KV_PREFIX}_due`,{}) }));
 
   const [estado,    setEstado]    = useState({fixtures:"idle",eventos:"idle",standings:"idle"});
   const [ultimaAct, setUltimaAct] = useState(null);
@@ -356,8 +373,6 @@ export default function App({ quinielaId = "familia" }) {
         <div style={{padding:"4px 16px",background:"rgba(0,0,0,0.2)",display:"flex",gap:12,alignItems:"center"}}>
           <span style={{fontSize:11,color:"#475569"}}>Cambiar quiniela:</span>
           {[
-            {h:"#/",       lbl:"🔍 2022"},
-            {h:"#/test",   lbl:"🧪 Test"},
             {h:"#/familia",lbl:"🏠 Familia"},
             {h:"#/amigos", lbl:"👥 Amigos"},
           ].map(n=>(
