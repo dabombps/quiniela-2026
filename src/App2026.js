@@ -28,6 +28,9 @@ const REGLAS_DEFAULT = {
   fairPlay:10, portero:3, goleo:5,
 };
 
+// ─── Asignaciones Quiniela Amigos (pendiente — se asignan desde Admin) ───────
+const DUENOS_AMIGOS_DEFAULT = {};
+
 // ─── Asignaciones Quiniela Familia (precargadas) ─────────────────────────────
 const DUENOS_FAMILIA_DEFAULT = {
   "Curaçao":"Leo","Saudi Arabia":"Leo","Tunisia":"Leo","Egypt":"Leo",
@@ -196,7 +199,7 @@ export default function App({ quinielaId = "familia" }) {
   const [standings, setStandings] = useState(()=>LD(`${KV_PREFIX}_std`,{}));
   const [reglas,    setReglas]    = useState(()=>({...REGLAS_DEFAULT,...LD(`${KV_PREFIX}_reg`,{})}));
   const [bonos,     setBonos]     = useState(()=>({fairPlay:"",portero:"",goleo:"",...LD(`${KV_PREFIX}_bon`,{})}));
-  const defaultDuenos = QUINIELA_ID === 'familia' ? DUENOS_FAMILIA_DEFAULT : {};
+  const defaultDuenos = QUINIELA_ID === 'familia' ? DUENOS_FAMILIA_DEFAULT : QUINIELA_ID === 'amigos' ? DUENOS_AMIGOS_DEFAULT : {};
   const [duenos,    setDuenosState] = useState(()=>({ ...defaultDuenos, ...LD(`${KV_PREFIX}_due`,{}) }));
 
   const [estado,    setEstado]    = useState({fixtures:"idle",eventos:"idle",standings:"idle"});
@@ -296,10 +299,10 @@ export default function App({ quinielaId = "familia" }) {
   const guardarReglas = () => { setReglas(reglasTmp); LS(`${KV_PREFIX}_reg`,reglasTmp); setEditReglas(false); };
 
   const eqPorD={};
-  Object.entries(duenos).forEach(([eq,d])=>{ if(!eqPorD[d])eqPorD[d]=[]; eqPorD[d].push(eq); });
+  Object.entries(duenos).forEach(([eq,d])=>{ if(!d||!d.trim())return; if(!eqPorD[d])eqPorD[d]=[]; eqPorD[d].push(eq); });
 
   const statsD={};
-  Object.keys(eqPorD).forEach(d=>{ statsD[d]={pt:0,g:0,e:0,p_:0,gl:0,am:0,ro:0,det:[]}; });
+  Object.keys(eqPorD).forEach(d=>{ if(!d||!d.trim())return; statsD[d]={pt:0,g:0,e:0,p_:0,gl:0,am:0,ro:0,det:[]}; });
 
   const jugados = partidos.filter(p=>FINAL.includes(p.fixture?.status?.short));
   const enVivo  = partidos.filter(p=>VIVO.includes(p.fixture?.status?.short));
