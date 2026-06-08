@@ -302,6 +302,12 @@ export default function App({ quinielaId = "familia" }) {
   useEffect(()=>{ timerRef.current=setInterval(()=>fetchFixtures(),CACHE_FIXTURES_MS); return()=>clearInterval(timerRef.current); },[fetchFixtures]);
   useEffect(()=>{ if(partidos.length>0) fetchEventos(); },[partidos]);
 
+  // Reiniciar dueños cuando cambia la quiniela (hash navigation)
+  useEffect(()=>{
+    const saved=LD(`${KV_PREFIX}_due`,{});
+    setDuenosState({...saved,...defaultDuenos});
+  },[QUINIELA_ID]);
+
   // ── Admin helpers ───────────────────────────────────────────────────────────
   const saveDuenos  = d => { setDuenosState(d); LS(`${KV_PREFIX}_due`,d); };
   const guardarBonos  = () => { setBonos(bonosTmp);  LS(`${KV_PREFIX}_bon`,bonosTmp);  setEditBonos(false);  };
