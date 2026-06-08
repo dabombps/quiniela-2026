@@ -31,7 +31,7 @@ const REGLAS_DEFAULT = {
 // ─── Asignaciones Quiniela Amigos (pendiente — se asignan desde Admin) ───────
 const DUENOS_AMIGOS_DEFAULT = {
   "Uzbekistan":"Ruben","Tunisia":"Ruben","Canada":"Ruben","Uruguay":"Ruben","Japan":"Ruben","Brazil":"Ruben",
-  "Curacao":"Bolas","Ghana":"Bolas","Ivory Coast":"Bolas","Senegal":"Bolas","United States":"Bolas","England":"Bolas",
+  "Curaçao":"Bolas","Ghana":"Bolas","Ivory Coast":"Bolas","Senegal":"Bolas","United States":"Bolas","England":"Bolas",
   "Jordan":"Chikilín","New Zealand":"Chikilín","Scotland":"Chikilín","Turkey":"Chikilín","Norway":"Chikilín","Netherlands":"Chikilín",
   "Panama":"Foca","Australia":"Foca","Algeria":"Foca","Austria":"Foca","Belgium":"Foca","Argentina":"Foca",
   "Iraq":"Manu","Saudi Arabia":"Manu","Korea Republic":"Manu","Sweden":"Manu","Mexico":"Manu","France":"Manu",
