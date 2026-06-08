@@ -156,7 +156,7 @@ const LST = k     => { try { localStorage.setItem(k+"_ts", String(Date.now())); 
 // ─── Cálculo puntos ───────────────────────────────────────────────────────────
 // Normalize team names that API may return differently
 function normalizeName(n) {
-  const map = {"USA":"United States","South Korea":"Korea Republic","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast","IR Iran":"Iran","Korea DPR":"North Korea"};
+  const map = {"USA":"United States","South Korea":"Korea Republic","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast","IR Iran":"Iran","Korea DPR":"North Korea","Curacao":"Curaçao"};
   return map[n] || n;
 }
 function calcPuntos(p, eq, eventos, R) {
