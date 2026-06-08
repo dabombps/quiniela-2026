@@ -209,7 +209,7 @@ export default function App({ quinielaId = "familia" }) {
   const [reglas,    setReglas]    = useState(()=>({...REGLAS_DEFAULT,...LD(`${KV_PREFIX}_reg`,{})}));
   const [bonos,     setBonos]     = useState(()=>({fairPlay:"",portero:"",goleo:"",...LD(`${KV_PREFIX}_bon`,{})}));
   const defaultDuenos = QUINIELA_ID === 'familia' ? DUENOS_FAMILIA_DEFAULT : QUINIELA_ID === 'amigos' ? DUENOS_AMIGOS_DEFAULT : {};
-  const [duenos,    setDuenosState] = useState(()=>({ ...defaultDuenos, ...LD(`${KV_PREFIX}_due`,{}) }));
+  const [duenos,    setDuenosState] = useState(()=>{ const saved=LD(`${KV_PREFIX}_due`,{}); const merged={...saved,...defaultDuenos}; return merged; });
 
   const [estado,    setEstado]    = useState({fixtures:"idle",eventos:"idle",standings:"idle"});
   const [ultimaAct, setUltimaAct] = useState(null);
