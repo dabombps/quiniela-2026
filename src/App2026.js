@@ -29,7 +29,16 @@ const REGLAS_DEFAULT = {
 };
 
 // ─── Asignaciones Quiniela Amigos (pendiente — se asignan desde Admin) ───────
-const DUENOS_AMIGOS_DEFAULT = {};
+const DUENOS_AMIGOS_DEFAULT = {
+  "Uzbekistan":"Ruben","Tunisia":"Ruben","Canada":"Ruben","Uruguay":"Ruben","Japan":"Ruben","Brazil":"Ruben",
+  "Curacao":"Bolas","Ghana":"Bolas","Ivory Coast":"Bolas","Senegal":"Bolas","United States":"Bolas","England":"Bolas",
+  "Jordan":"Chikilín","New Zealand":"Chikilín","Scotland":"Chikilín","Turkey":"Chikilín","Norway":"Chikilín","Netherlands":"Chikilín",
+  "Panama":"Foca","Australia":"Foca","Algeria":"Foca","Austria":"Foca","Belgium":"Foca","Argentina":"Foca",
+  "Iraq":"Manu","Saudi Arabia":"Manu","Korea Republic":"Manu","Sweden":"Manu","Mexico":"Manu","France":"Manu",
+  "Qatar":"Novoa","South Africa":"Novoa","Czech Republic":"Novoa","Croatia":"Novoa","Ecuador":"Novoa","Portugal":"Novoa",
+  "Haiti":"Gabrich","DR Congo":"Gabrich","Egypt":"Gabrich","Paraguay":"Gabrich","Colombia":"Gabrich","Germany":"Gabrich",
+  "Cape Verde":"Rodrigo","Iran":"Rodrigo","Bosnia and Herzegovina":"Rodrigo","Switzerland":"Rodrigo","Morocco":"Rodrigo","Spain":"Rodrigo",
+};
 
 // ─── Asignaciones Quiniela Familia (precargadas) ─────────────────────────────
 const DUENOS_FAMILIA_DEFAULT = {
