@@ -332,12 +332,16 @@ export default function App({ quinielaId = "familia" }) {
     });
   });
 
-  // Standings bonus
-  Object.entries(standings).forEach(([eq,rank])=>{
-    const d=duenos[eq]; if(!d||!statsD[d]) return;
-    if(rank===1) statsD[d].pt+=reglas.primeroGrupo;
-    else if(rank===2) statsD[d].pt+=reglas.segundoGrupo;
-  });
+  // Standings bonus — solo aplicar si ya hay partidos terminados en el grupo
+  // Evita mostrar puntos de posición antes de que empiece el torneo
+  const hayJugados = jugados.length > 0;
+  if(hayJugados) {
+    Object.entries(standings).forEach(([eq,rank])=>{
+      const d=duenos[eq]; if(!d||!statsD[d]) return;
+      if(rank===1) statsD[d].pt+=reglas.primeroGrupo;
+      else if(rank===2) statsD[d].pt+=reglas.segundoGrupo;
+    });
+  }
 
   // Bonos
   if(bonos.fairPlay&&duenos[bonos.fairPlay]&&statsD[duenos[bonos.fairPlay]]) statsD[duenos[bonos.fairPlay]].pt+=reglas.fairPlay;
