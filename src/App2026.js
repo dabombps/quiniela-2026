@@ -724,6 +724,117 @@ export default function App({ quinielaId = "familia" }) {
   );
 }
 
+// ─── Coordenadas sedes Mundial 2026 (para clima) ──────────────────────────────
+const VENUE_COORDS = {
+  "SoFi Stadium":           { lat: 33.9534, lon: -118.3392, tz: "America/Los_Angeles" },
+  "MetLife Stadium":        { lat: 40.8135, lon: -74.0745,  tz: "America/New_York" },
+  "AT&T Stadium":           { lat: 32.7473, lon: -97.0945,  tz: "America/Chicago" },
+  "Levi's Stadium":         { lat: 37.4033, lon: -121.9694, tz: "America/Los_Angeles" },
+  "Arrowhead Stadium":      { lat: 39.0489, lon: -94.4839,  tz: "America/Chicago" },
+  "Lincoln Financial Field":{ lat: 39.9007, lon: -75.1675,  tz: "America/New_York" },
+  "Hard Rock Stadium":      { lat: 25.9580, lon: -80.2389,  tz: "America/New_York" },
+  "Lumen Field":            { lat: 47.5952, lon: -122.3316, tz: "America/Los_Angeles" },
+  "NRG Stadium":            { lat: 29.6847, lon: -95.4107,  tz: "America/Chicago" },
+  "Gillette Stadium":       { lat: 42.0909, lon: -71.2643,  tz: "America/New_York" },
+  "Mercedes-Benz Stadium":  { lat: 33.7554, lon: -84.4010,  tz: "America/New_York" },
+  "BMO Field":              { lat: 43.6333, lon: -79.4186,  tz: "America/Toronto" },
+  "BC Place":               { lat: 49.2767, lon: -123.1117, tz: "America/Vancouver" },
+  "Estadio Azteca":         { lat: 19.3029, lon: -99.1505,  tz: "America/Mexico_City" },
+  "Estadio BBVA":           { lat: 25.6694, lon: -100.2438, tz: "America/Monterrey" },
+  "Estadio Akron":          { lat: 20.6597, lon: -103.4068, tz: "America/Mexico_City" },
+};
+
+// ─── WeatherBadge ─────────────────────────────────────────────────────────────
+function WeatherBadge({ venueName, matchDate }) {
+  const [wx, setWx] = useState(null);
+
+  useEffect(() => {
+    const coords = VENUE_COORDS[venueName];
+    if (!coords || !matchDate) return;
+
+    // Parse match date and get the local hour at the venue
+    const matchUTC  = new Date(matchDate);
+    const date      = matchDate.split("T")[0];
+
+    // Open-Meteo hourly: temp, weathercode, precipitation_probability at match hour
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}`
+      + `&hourly=temperature_2m,weathercode,precipitation_probability`
+      + `&timezone=${encodeURIComponent(coords.tz)}`
+      + `&start_date=${date}&end_date=${date}`;
+
+    fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        const h = data.hourly;
+        if (!h) return;
+
+        // Find the index closest to match UTC time in the hourly array
+        // Open-Meteo returns times in venue local time as strings "YYYY-MM-DDTHH:00"
+        // Convert match UTC → venue local hour
+        const venueOffset = getVenueOffsetHours(coords.tz, matchUTC);
+        const localHour   = (matchUTC.getUTCHours() + venueOffset + 24) % 24;
+
+        // Find index where hour matches
+        const idx = h.time.findIndex(t => {
+          const h = parseInt(t.split("T")[1]);
+          return h === localHour;
+        });
+        if (idx === -1) return;
+
+        setWx({
+          code : h.weathercode[idx],
+          temp : Math.round(h.temperature_2m[idx]),
+          rain : h.precipitation_probability[idx] ?? 0,
+        });
+      })
+      .catch(() => {});
+  }, [venueName, matchDate]);
+
+  if (!wx) return null;
+
+  const { icon, label } = wxInfo(wx.code);
+  const rainColor = wx.rain > 60 ? "#60a5fa" : wx.rain > 30 ? "#93c5fd" : "#64748b";
+
+  return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:10,color:"#94a3b8",background:"rgba(255,255,255,0.05)",borderRadius:20,padding:"2px 8px",border:"1px solid rgba(255,255,255,0.08)"}}>
+      <span style={{fontSize:13}}>{icon}</span>
+      <span style={{fontWeight:700,color:"#e2e8f0"}}>{wx.temp}°C</span>
+      <span style={{color:"#64748b"}}>{label}</span>
+      {wx.rain > 0 && <span style={{color:rainColor}}>💧{wx.rain}%</span>}
+    </span>
+  );
+}
+
+// Approximate UTC offset for venue timezone at a given date
+// (handles summer/winter roughly — good enough for June-July)
+function getVenueOffsetHours(tz, date) {
+  const offsets = {
+    "America/Los_Angeles": -7,
+    "America/Chicago":     -5,
+    "America/New_York":    -4,
+    "America/Toronto":     -4,
+    "America/Vancouver":   -7,
+    "America/Mexico_City": -5,
+    "America/Monterrey":   -5,
+  };
+  return offsets[tz] ?? -5;
+}
+
+function wxInfo(code) {
+  if (code === undefined || code === null) return { icon:"🌡️", label:"" };
+  if (code === 0)        return { icon:"☀️",  label:"Soleado" };
+  if (code === 1)        return { icon:"🌤️",  label:"Mayormente soleado" };
+  if (code === 2)        return { icon:"⛅",   label:"Parcialmente nublado" };
+  if (code === 3)        return { icon:"☁️",  label:"Nublado" };
+  if (code <= 49)        return { icon:"🌫️",  label:"Neblina" };
+  if (code <= 59)        return { icon:"🌦️",  label:"Llovizna" };
+  if (code <= 69)        return { icon:"🌧️",  label:"Lluvia" };
+  if (code <= 79)        return { icon:"🌨️",  label:"Nieve" };
+  if (code <= 84)        return { icon:"🌧️",  label:"Lluvia fuerte" };
+  if (code <= 94)        return { icon:"⛈️",  label:"Tormenta" };
+  return { icon:"🌩️", label:"Tormenta eléctrica" };
+}
+
 // ─── TabPartidos (vista unificada) ────────────────────────────────────────────
 function TabPartidos({ partidos, tabla, reglas, duenos, quinielaColor }) {
   const FINAL = ["FT","AET","PEN","AWD","WO"];
@@ -861,7 +972,10 @@ function TabPartidos({ partidos, tabla, reglas, duenos, quinielaColor }) {
                 {vivo && <span style={{fontSize:10,fontWeight:700,color:"#f59e0b",background:"rgba(245,158,11,0.2)",borderRadius:4,padding:"1px 6px"}}>🔴 EN VIVO</span>}
                 <span style={{fontSize:11,color:"#64748b"}}>{fecha}</span>
                 <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{hora} CDMX</span>
-                <span style={{fontSize:11,color:"#475569",marginLeft:"auto"}}>📍 {sede}{ciudad?`, ${ciudad}`:""}</span>
+                <span style={{display:"flex",alignItems:"center",gap:6,marginLeft:"auto"}}>
+                  <span style={{fontSize:11,color:"#475569"}}>📍 {sede}{ciudad?`, ${ciudad}`:""}</span>
+                  <WeatherBadge venueName={sede} matchDate={p.fixture?.date}/>
+                </span>
               </div>
               {/* Equipos + marcador */}
               <div style={{display:"flex",alignItems:"center",padding:"10px 14px",gap:8}}>
