@@ -745,6 +745,20 @@ const VENUE_COORDS = {
 };
 
 // ─── WeatherBadge ─────────────────────────────────────────────────────────────
+// Cache key: wx_<venue>_<date>, refreshed daily at 5am CDMX
+function getWxCacheKey(venue, date) {
+  return `wx_${venue.replace(/[^a-z0-9]/gi,"_")}_${date}`;
+}
+
+function shouldRefreshWx(cacheKey) {
+  // Refresh if cached data is older than 6 hours
+  try {
+    const meta = localStorage.getItem(cacheKey + "_ts");
+    if (!meta) return true;
+    return (Date.now() - parseInt(meta)) > 6 * 60 * 60 * 1000;
+  } catch { return true; }
+}
+
 function WeatherBadge({ venueName, matchDate }) {
   const [wx, setWx] = useState(null);
 
@@ -752,14 +766,48 @@ function WeatherBadge({ venueName, matchDate }) {
     const coords = VENUE_COORDS[venueName];
     if (!coords || !matchDate) return;
 
-    // Parse match date and get the local hour at the venue
     const matchUTC  = new Date(matchDate);
-    const date      = matchDate.split("T")[0];
+    const now       = new Date();
+    const daysAhead = (matchUTC - now) / (1000 * 60 * 60 * 24);
 
-    // Open-Meteo hourly: temp, weathercode, precipitation_probability at match hour
+    // Match already played — no forecast needed
+    if (daysAhead < -1) return;
+
+    // Beyond 16-day window — mark as pending, will appear when window rolls forward
+    if (daysAhead > 16) {
+      setWx({ pending: true });
+      return;
+    }
+
+    const date     = matchDate.split("T")[0];
+    const cacheKey = getWxCacheKey(venueName, date);
+
+    // Check localStorage cache — refresh every 6h
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached && !shouldRefreshWx(cacheKey)) {
+        setWx(JSON.parse(cached));
+        return;
+      }
+    } catch {}
+
+    // UTC offset for venue (June-July DST values)
+    const offsets = {
+      "America/Los_Angeles": -7,
+      "America/Chicago":     -5,
+      "America/New_York":    -4,
+      "America/Toronto":     -4,
+      "America/Vancouver":   -7,
+      "America/Mexico_City": -6, // CDT in summer
+      "America/Monterrey":   -5,
+    };
+    const offset    = offsets[coords.tz] ?? -5;
+    const localHour = ((matchUTC.getUTCHours() + offset) % 24 + 24) % 24;
+
+    // Open-Meteo hourly forecast — use UTC timezone to match exactly
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lon}`
       + `&hourly=temperature_2m,weathercode,precipitation_probability`
-      + `&timezone=${encodeURIComponent(coords.tz)}`
+      + `&timezone=UTC`
       + `&start_date=${date}&end_date=${date}`;
 
     fetch(url)
@@ -768,29 +816,37 @@ function WeatherBadge({ venueName, matchDate }) {
         const h = data.hourly;
         if (!h) return;
 
-        // Find the index closest to match UTC time in the hourly array
-        // Open-Meteo returns times in venue local time as strings "YYYY-MM-DDTHH:00"
-        // Convert match UTC → venue local hour
-        const venueOffset = getVenueOffsetHours(coords.tz, matchUTC);
-        const localHour   = (matchUTC.getUTCHours() + venueOffset + 24) % 24;
-
-        // Find index where hour matches
-        const idx = h.time.findIndex(t => {
-          const h = parseInt(t.split("T")[1]);
-          return h === localHour;
-        });
+        // With timezone=UTC, times are "YYYY-MM-DDTHH:00" in UTC
+        // Match UTC hour directly
+        const utcHour = matchUTC.getUTCHours();
+        const idx = h.time.findIndex(t => parseInt(t.split("T")[1]) === utcHour);
         if (idx === -1) return;
 
-        setWx({
+        const result = {
           code : h.weathercode[idx],
           temp : Math.round(h.temperature_2m[idx]),
           rain : h.precipitation_probability[idx] ?? 0,
-        });
+        };
+
+        // Save to localStorage
+        try {
+          localStorage.setItem(cacheKey, JSON.stringify(result));
+          localStorage.setItem(cacheKey + "_ts", String(Date.now()));
+        } catch {}
+
+        setWx(result);
       })
       .catch(() => {});
   }, [venueName, matchDate]);
 
   if (!wx) return null;
+
+  // Beyond 16-day forecast window — show placeholder
+  if (wx.pending) return (
+    <span style={{display:"inline-flex",alignItems:"center",gap:3,fontSize:10,color:"#475569",background:"rgba(255,255,255,0.03)",borderRadius:20,padding:"2px 8px",border:"1px solid rgba(255,255,255,0.05)"}}>
+      🌡️ <span>Pronóstico próximamente</span>
+    </span>
+  );
 
   const { icon, label } = wxInfo(wx.code);
   const rainColor = wx.rain > 60 ? "#60a5fa" : wx.rain > 30 ? "#93c5fd" : "#64748b";
@@ -803,21 +859,6 @@ function WeatherBadge({ venueName, matchDate }) {
       {wx.rain > 0 && <span style={{color:rainColor}}>💧{wx.rain}%</span>}
     </span>
   );
-}
-
-// Approximate UTC offset for venue timezone at a given date
-// (handles summer/winter roughly — good enough for June-July)
-function getVenueOffsetHours(tz, date) {
-  const offsets = {
-    "America/Los_Angeles": -7,
-    "America/Chicago":     -5,
-    "America/New_York":    -4,
-    "America/Toronto":     -4,
-    "America/Vancouver":   -7,
-    "America/Mexico_City": -5,
-    "America/Monterrey":   -5,
-  };
-  return offsets[tz] ?? -5;
 }
 
 function wxInfo(code) {
