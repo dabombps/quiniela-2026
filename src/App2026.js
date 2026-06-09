@@ -10,7 +10,7 @@ const ADMIN_PASS = "Contraseña";
 
 // Config se pasa como prop (ver index.js router)
 const QUINIELA_CONFIGS = {
-  familia: { label:"FAMILIA",  color:"#f59e0b", participantes:6, eqPorPersona:8  },
+  familia: { label:"FAM. VÁZQUEZ",  color:"#f59e0b", participantes:6, eqPorPersona:8  },
   amigos:  { label:"AMIGOS",   color:"#3b82f6", participantes:8, eqPorPersona:6  },
   test:    { label:"TEST",     color:"#a855f7", participantes:2, eqPorPersona:4  },
 };
@@ -156,7 +156,7 @@ const LST = k     => { try { localStorage.setItem(k+"_ts", String(Date.now())); 
 // ─── Cálculo puntos ───────────────────────────────────────────────────────────
 // Normalize team names that API may return differently
 function normalizeName(n) {
-  const map = {"USA":"United States","South Korea":"Korea Republic","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast","IR Iran":"Iran","Korea DPR":"North Korea","Curacao":"Curaçao"};
+  const map = {"USA":"United States","South Korea":"Korea Republic","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast","IR Iran":"Iran","Korea DPR":"North Korea","Curacao":"Curaçao","Türkiye":"Turkey","Bosnia & Herzegovina":"Bosnia","Cape Verde Islands":"Cape Verde","Congo DR":"DR Congo"};
   return map[n] || n;
 }
 function calcPuntos(p, eq, eventos, R) {
@@ -398,7 +398,7 @@ export default function App({ quinielaId = "familia" }) {
         <div style={{padding:"4px 16px",background:"rgba(0,0,0,0.2)",display:"flex",gap:12,alignItems:"center"}}>
           <span style={{fontSize:11,color:"#475569"}}>Cambiar quiniela:</span>
           {[
-            {h:"#/familia",lbl:"🏠 Familia"},
+            {h:"#/familia",lbl:"🏠 Fam. Vázquez"},
             {h:"#/amigos", lbl:"👥 Amigos"},
           ].map(n=>(
             <span key={n.h} onClick={()=>{window.location.hash=n.h;}}
@@ -465,10 +465,7 @@ export default function App({ quinielaId = "familia" }) {
         {/* ══ PARTIDOS ══ */}
         {tab==="partidos"&&(
           <div>
-            {tabla.length===0
-              ? <p style={{color:"#64748b",fontSize:13}}>Asigna participantes en ⚙️ Admin para ver el desglose.</p>
-              : <DesglosePartidos tabla={tabla} reglas={reglas}/>
-            }
+            <TabPartidos partidos={partidos} tabla={tabla} reglas={reglas} duenos={duenos} quinielaColor={QUINIELA_COLOR}/>
           </div>
         )}
 
@@ -688,6 +685,128 @@ export default function App({ quinielaId = "familia" }) {
       <footer style={{textAlign:"center",padding:12,fontSize:11,color:"#334155",borderTop:`1px solid ${QUINIELA_COLOR}22`,marginTop:20}}>
         ⚽ Quiniela 2026 · {QUINIELA_LABEL} · USA · México · Canadá · API-Football
       </footer>
+    </div>
+  );
+}
+
+// ─── TabPartidos ──────────────────────────────────────────────────────────────
+function TabPartidos({ partidos, tabla, reglas, duenos, quinielaColor }) {
+  const [vista, setVista] = useState("todos"); // "todos" | "jugados" | "porjugar"
+  const [sortDir, setSortDir] = useState("asc");
+
+  const FINAL = ["FT","AET","PEN","AWD","WO"];
+  const fmt = (isoDate) => {
+    if(!isoDate) return {fecha:"",hora:""};
+    // Convertir a hora CDMX (UTC-6)
+    const d = new Date(isoDate);
+    const cdmx = new Date(d.getTime() - 6*60*60*1000);
+    const fecha = cdmx.toLocaleDateString("es-MX",{day:"2-digit",month:"short",weekday:"short",timeZone:"UTC"});
+    const hora  = cdmx.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit",hour12:true,timeZone:"UTC"});
+    return {fecha, hora};
+  };
+
+  // Construir mapa equipo→dueño para mostrar quién tiene cada equipo
+  const eqDueno = duenos || {};
+
+  const lista = [...partidos]
+    .filter(p => {
+      const jugado = FINAL.includes(p.fixture?.status?.short);
+      if(vista==="jugados") return jugado;
+      if(vista==="porjugar") return !jugado;
+      return true;
+    })
+    .sort((a,b) => {
+      const cmp = (a.fixture?.date||"").localeCompare(b.fixture?.date||"");
+      return sortDir==="asc" ? cmp : -cmp;
+    });
+
+  const btnV = (v, lbl) => (
+    <button key={v} style={{...S.btnF,...(vista===v?S.btnFA:{})}} onClick={()=>setVista(v)}>{lbl}</button>
+  );
+
+  return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:12}}>
+        <div>
+          <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ver:</span>
+          {btnV("todos","Todos")}
+          {btnV("jugados","✅ Jugados")}
+          {btnV("porjugar","⏳ Por jugar")}
+        </div>
+        <button style={{...S.btnF,...(sortDir==="asc"?S.btnFA:{})}} onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}>
+          📅 Fecha {sortDir==="asc"?"↑":"↓"}
+        </button>
+      </div>
+      <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{lista.length} partidos</div>
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {lista.map((p,i) => {
+          const home = p.teams?.home?.name;
+          const away = p.teams?.away?.name;
+          const homeN = normalizeName(home);
+          const awayN = normalizeName(away);
+          const dHome = eqDueno[homeN];
+          const dAway = eqDueno[awayN];
+          const jugado = FINAL.includes(p.fixture?.status?.short);
+          const vivo = ["1H","2H","HT","ET","BT","P"].includes(p.fixture?.status?.short);
+          const gHome = p.goals?.home;
+          const gAway = p.goals?.away;
+          const {fecha, hora} = fmt(p.fixture?.date);
+          const sede = p.fixture?.venue?.name || "";
+          const ciudad = p.fixture?.venue?.city || "";
+          const fase = faseLabel(p.league?.round);
+
+          const borderColor = vivo ? "#f59e0b" : jugado ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)";
+          const bgColor = vivo ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.02)";
+
+          return (
+            <div key={p.fixture?.id||i} style={{background:bgColor,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden"}}>
+              {/* Header */}
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",padding:"5px 12px",background:"rgba(0,0,0,0.25)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                <span style={{fontSize:10,fontWeight:700,color:quinielaColor,background:"rgba(255,255,255,0.07)",borderRadius:4,padding:"1px 6px",textTransform:"uppercase"}}>{fase}</span>
+                {vivo && <span style={{fontSize:10,fontWeight:700,color:"#f59e0b",background:"rgba(245,158,11,0.2)",borderRadius:4,padding:"1px 6px"}}>🔴 EN VIVO</span>}
+                <span style={{fontSize:11,color:"#64748b"}}>{fecha}</span>
+                <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{hora} CDMX</span>
+                <span style={{fontSize:11,color:"#475569",marginLeft:"auto"}}>📍 {sede}{ciudad?`, ${ciudad}`:""}</span>
+              </div>
+              {/* Partido */}
+              <div style={{display:"flex",alignItems:"center",padding:"10px 14px",gap:8}}>
+                {/* Local */}
+                <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:22}}>{fl(homeN)}</span>
+                    <span style={{fontSize:13,fontWeight:700}}>{esp(homeN)}</span>
+                  </div>
+                  {dHome && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingLeft:28}}>👤 {dHome}</span>}
+                </div>
+                {/* Marcador */}
+                <div style={{display:"flex",alignItems:"center",gap:4,background:"rgba(0,0,0,0.4)",borderRadius:8,padding:"6px 14px",border:"1px solid rgba(255,255,255,0.1)",minWidth:70,justifyContent:"center"}}>
+                  {jugado||vivo
+                    ? <><span style={{fontSize:22,fontWeight:900}}>{gHome??"-"}</span>
+                        <span style={{fontSize:14,color:"#475569"}}>–</span>
+                        <span style={{fontSize:22,fontWeight:900}}>{gAway??"-"}</span></>
+                    : <span style={{fontSize:13,color:"#475569",fontWeight:700}}>VS</span>
+                  }
+                </div>
+                {/* Visitante */}
+                <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:13,fontWeight:700}}>{esp(awayN)}</span>
+                    <span style={{fontSize:22}}>{fl(awayN)}</span>
+                  </div>
+                  {dAway && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingRight:28}}>👤 {dAway}</span>}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+        {lista.length===0 && <p style={{color:"#64748b",fontSize:13,textAlign:"center",padding:20}}>No hay partidos en esta vista.</p>}
+      </div>
+      {/* Desglose por puntos (solo si hay jugados) */}
+      {vista!=="porjugar" && tabla.length>0 && (
+        <div style={{marginTop:24}}>
+          <DesglosePartidos tabla={tabla} reglas={reglas}/>
+        </div>
+      )}
     </div>
   );
 }
