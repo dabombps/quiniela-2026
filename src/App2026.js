@@ -689,187 +689,183 @@ export default function App({ quinielaId = "familia" }) {
   );
 }
 
-// ─── TabPartidos ──────────────────────────────────────────────────────────────
+// ─── TabPartidos (vista unificada) ────────────────────────────────────────────
 function TabPartidos({ partidos, tabla, reglas, duenos, quinielaColor }) {
-  const [vista,         setVista]         = useState("todos");
-  const [sortDir,       setSortDir]       = useState("asc");
-  const [filtroJugador, setFiltroJugador] = useState("TODOS");
-  const [filtroFase2,   setFiltroFase2]   = useState("TODOS");
-  const [sortBy,        setSortBy]        = useState("fecha");
-  const [subTab,        setSubTab]        = useState("calendario"); // "calendario" | "desglose"
-
   const FINAL = ["FT","AET","PEN","AWD","WO"];
+  const VIVO  = ["1H","2H","HT","ET","BT","P"];
+
+  const [vista,         setVista]         = useState("todos");   // todos | jugados | porjugar
+  const [filtroJugador, setFiltroJugador] = useState("TODOS");
+  const [filtroFase,    setFiltroFase]    = useState("TODOS");
+  const [sortBy,        setSortBy]        = useState("fecha");   // fecha | pts | difgoles | amarillas | rojas
+  const [sortDir,       setSortDir]       = useState("asc");
+
+  const eqDueno = duenos || {};
 
   const fmt = (isoDate) => {
     if(!isoDate) return {fecha:"",hora:""};
-    const d = new Date(isoDate);
+    const d    = new Date(isoDate);
     const cdmx = new Date(d.getTime() - 6*60*60*1000);
-    const fecha = cdmx.toLocaleDateString("es-MX",{day:"2-digit",month:"short",weekday:"short",timeZone:"UTC"});
+    const fecha = cdmx.toLocaleDateString("es-MX",{weekday:"short",day:"2-digit",month:"short",timeZone:"UTC"});
     const hora  = cdmx.toLocaleTimeString("es-MX",{hour:"2-digit",minute:"2-digit",hour12:true,timeZone:"UTC"});
     return {fecha, hora};
   };
 
-  const eqDueno = duenos || {};
+  // Construir lista enriquecida: un item por equipo de la quiniela en cada partido
+  // Para partidos no jugados, mostrar la tarjeta del partido (sin dueño repetido)
+  // Para jugados, mostrar la tarjeta con desglose de pts por cada dueño involucrado
+  const jugadosMap = new Map(); // fixture.id → array de rows del desglose
+  tabla.forEach(row => {
+    row.det.forEach(d => {
+      if(!FINAL.includes(d.par.fixture?.status?.short)) return;
+      const fid = d.par.fixture?.id;
+      if(!jugadosMap.has(fid)) jugadosMap.set(fid, []);
+      jugadosMap.get(fid).push({dueno:row.d, eq:d.eq, r:d.r, par:d.par});
+    });
+  });
 
-  // ── Calendario ──
-  const handleSortCal = () => setSortDir(d => d==="asc"?"desc":"asc");
+  // Lista de todos los partidos como unidades base
+  const todosPartidos = partidos.map(p => {
+    const fid     = p.fixture?.id;
+    const jugado  = FINAL.includes(p.fixture?.status?.short);
+    const vivo    = VIVO.includes(p.fixture?.status?.short);
+    const homeN   = normalizeName(p.teams?.home?.name);
+    const awayN   = normalizeName(p.teams?.away?.name);
+    const dHome   = eqDueno[homeN];
+    const dAway   = eqDueno[awayN];
+    const desgRows = jugadosMap.get(fid) || [];
+    // Para ordenar por pts/goles/tarjetas: usar suma de pts de los dueños involucrados
+    const ptSum   = desgRows.reduce((s,x)=>s+x.r.pt,0);
+    const difSum  = desgRows.reduce((s,x)=>s+(x.r.diff||0),0);
+    const amSum   = desgRows.reduce((s,x)=>s+(x.r.am||0),0);
+    const roSum   = desgRows.reduce((s,x)=>s+(x.r.ro||0),0);
+    // Jugadores involucrados (dueños que tienen homeN o awayN)
+    const jugInv  = [dHome,dAway].filter(Boolean);
+    const fase    = faseLabel(p.league?.round);
+    return { p, fid, jugado, vivo, homeN, awayN, dHome, dAway, desgRows, ptSum, difSum, amSum, roSum, jugInv, fase, fecha:p.fixture?.date||"" };
+  });
 
-  const listaCalendario = [...partidos]
-    .filter(p => {
-      const jugado = FINAL.includes(p.fixture?.status?.short);
-      if(vista==="jugados") return jugado;
-      if(vista==="porjugar") return !jugado;
+  // Todos los jugadores y fases para filtros
+  const allJugadores = ["TODOS",...new Set(todosPartidos.flatMap(x=>x.jugInv))];
+  const allFases     = ["TODOS",...new Set(todosPartidos.map(x=>x.fase).filter(Boolean))];
+
+  const handleSort = k => {
+    if(sortBy===k) setSortDir(d=>d==="asc"?"desc":"asc");
+    else { setSortBy(k); setSortDir(k==="pts"?"desc":"asc"); }
+  };
+
+  const lista = todosPartidos
+    .filter(x => {
+      if(vista==="jugados")   return x.jugado;
+      if(vista==="porjugar")  return !x.jugado && !x.vivo;
       return true;
     })
+    .filter(x => filtroJugador==="TODOS" || x.jugInv.includes(filtroJugador))
+    .filter(x => filtroFase==="TODOS"    || x.fase===filtroFase)
     .sort((a,b) => {
-      const cmp = (a.fixture?.date||"").localeCompare(b.fixture?.date||"");
+      let cmp = 0;
+      if(sortBy==="fecha")      cmp = a.fecha.localeCompare(b.fecha);
+      else if(sortBy==="pts")   cmp = a.ptSum - b.ptSum;
+      else if(sortBy==="difgoles") cmp = a.difSum - b.difSum;
+      else if(sortBy==="amarillas") cmp = a.amSum - b.amSum;
+      else if(sortBy==="rojas") cmp = a.roSum - b.roSum;
       return sortDir==="asc" ? cmp : -cmp;
     });
 
-  // ── Desglose ──
-  const handleSortDesg = k => { if(sortBy===k) setSortDir(d=>d==="asc"?"desc":"asc"); else{setSortBy(k);setSortDir("asc");}};
-
-  const todosDesg = tabla.flatMap(row=>
-    row.det.filter(d=>FINAL.includes(d.par.fixture?.status?.short))
-    .map(d=>({
-      dueno:row.d, eq:d.eq, rival:d.r.esL?d.par.teams?.away?.name:d.par.teams?.home?.name,
-      gfavor:d.r.esL?d.par.goals?.home:d.par.goals?.away,
-      gcontra:d.r.esL?d.par.goals?.away:d.par.goals?.home,
-      diff:d.r.diff, fase:faseLabel(d.par.league?.round),
-      fecha:d.par.fixture?.date||"", am:d.r.am, ro:d.r.ro, pt:d.r.pt, r:d.r, par:d.par,
-    }))
-  );
-  const jugadoresList=["TODOS",...new Set(todosDesg.map(t=>t.dueno))];
-  const fasesList=["TODOS",...new Set(todosDesg.map(t=>t.fase).filter(Boolean))];
-  const filtradosDesg=[...todosDesg]
-    .filter(t=>filtroJugador==="TODOS"||t.dueno===filtroJugador)
-    .filter(t=>filtroFase2==="TODOS"||t.fase===filtroFase2)
-    .sort((a,b)=>{
-      let cmp=0;
-      if(sortBy==="fecha") cmp=a.fecha.localeCompare(b.fecha);
-      else if(sortBy==="pts") cmp=a.pt-b.pt;
-      else if(sortBy==="amarillas") cmp=a.am-b.am;
-      else if(sortBy==="rojas") cmp=a.ro-b.ro;
-      else if(sortBy==="difgoles") cmp=a.diff-b.diff;
-      return sortDir==="asc"?cmp:-cmp;
-    });
-
-  const btnF=(val,actual,set,lbl)=>(
+  const btnF = (val,actual,set,lbl) => (
     <button key={val} style={{...S.btnF,...(actual===val?S.btnFA:{})}} onClick={()=>set(val)}>{lbl||val}</button>
   );
-  const SORTS=[{k:"fecha",lbl:"📅 Fecha"},{k:"pts",lbl:"🏆 Pts"},{k:"difgoles",lbl:"⚽ Goles"},{k:"amarillas",lbl:"🟨"},{k:"rojas",lbl:"🟥"}];
+  const SORTS = [{k:"fecha",lbl:"📅 Fecha"},{k:"pts",lbl:"🏆 Pts"},{k:"difgoles",lbl:"⚽ Goles"},{k:"amarillas",lbl:"🟨"},{k:"rojas",lbl:"🟥"}];
 
   return (
     <div>
-      {/* Sub-tabs */}
-      <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid rgba(255,255,255,0.08)",paddingBottom:10}}>
-        {[["calendario","📅 Calendario"],["desglose","📊 Desglose pts"]].map(([v,lbl])=>(
-          <button key={v} style={{...S.btnF,fontSize:12,padding:"5px 12px",...(subTab===v?S.btnFA:{})}} onClick={()=>setSubTab(v)}>{lbl}</button>
+      {/* ── Filtros ── */}
+      <div style={{marginBottom:6}}>
+        <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ver:</span>
+        {btnF("todos",vista,setVista,"Todos")}
+        {btnF("jugados",vista,setVista,"✅ Jugados")}
+        {btnF("porjugar",vista,setVista,"⏳ Por jugar")}
+      </div>
+      {allJugadores.length>2 && (
+        <div style={{marginBottom:6}}>
+          <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Jugador:</span>
+          {allJugadores.map(j=>btnF(j,filtroJugador,setFiltroJugador,j==="TODOS"?"Todos":j))}
+        </div>
+      )}
+      {allFases.length>2 && (
+        <div style={{marginBottom:6}}>
+          <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Fase:</span>
+          {allFases.map(f=>btnF(f,filtroFase,setFiltroFase,f==="TODOS"?"Todas":f))}
+        </div>
+      )}
+      <div style={{marginBottom:14}}>
+        <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ordenar:</span>
+        {SORTS.map(s=>(
+          <button key={s.k} style={{...S.btnF,...(sortBy===s.k?S.btnFA:{})}} onClick={()=>handleSort(s.k)}>
+            {s.lbl}{sortBy===s.k?(sortDir==="asc"?" ↑":" ↓"):""}
+          </button>
         ))}
       </div>
+      <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{lista.length} partidos</div>
 
-      {/* ── CALENDARIO ── */}
-      {subTab==="calendario" && (
-        <div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:12}}>
-            <div>
-              <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ver:</span>
-              {btnF("todos",vista,setVista,"Todos")}
-              {btnF("jugados",vista,setVista,"✅ Jugados")}
-              {btnF("porjugar",vista,setVista,"⏳ Por jugar")}
-            </div>
-            <button style={{...S.btnF}} onClick={handleSortCal}>
-              📅 Fecha {sortDir==="asc"?"↑":"↓"}
-            </button>
-          </div>
-          <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{listaCalendario.length} partidos</div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {listaCalendario.map((p,i) => {
-              const home = p.teams?.home?.name;
-              const away = p.teams?.away?.name;
-              const homeN = normalizeName(home);
-              const awayN = normalizeName(away);
-              const dHome = eqDueno[homeN];
-              const dAway = eqDueno[awayN];
-              const jugado = FINAL.includes(p.fixture?.status?.short);
-              const vivo = ["1H","2H","HT","ET","BT","P"].includes(p.fixture?.status?.short);
-              const gHome = p.goals?.home;
-              const gAway = p.goals?.away;
-              const {fecha, hora} = fmt(p.fixture?.date);
-              const sede = p.fixture?.venue?.name || "";
-              const ciudad = p.fixture?.venue?.city || "";
-              const fase = faseLabel(p.league?.round);
-              const borderColor = vivo ? "#f59e0b" : jugado ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)";
-              const bgColor = vivo ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.02)";
-              return (
-                <div key={p.fixture?.id||i} style={{background:bgColor,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden"}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",padding:"5px 12px",background:"rgba(0,0,0,0.25)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                    <span style={{fontSize:10,fontWeight:700,color:quinielaColor,background:"rgba(255,255,255,0.07)",borderRadius:4,padding:"1px 6px",textTransform:"uppercase"}}>{fase}</span>
-                    {vivo && <span style={{fontSize:10,fontWeight:700,color:"#f59e0b",background:"rgba(245,158,11,0.2)",borderRadius:4,padding:"1px 6px"}}>🔴 EN VIVO</span>}
-                    <span style={{fontSize:11,color:"#64748b"}}>{fecha}</span>
-                    <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{hora} CDMX</span>
-                    <span style={{fontSize:11,color:"#475569",marginLeft:"auto"}}>📍 {sede}{ciudad?`, ${ciudad}`:""}</span>
+      {/* ── Lista ── */}
+      <div style={{display:"flex",flexDirection:"column",gap:8}}>
+        {lista.map(({p,jugado,vivo,homeN,awayN,dHome,dAway,desgRows,fase},i) => {
+          const {fecha,hora} = fmt(p.fixture?.date);
+          const sede   = p.fixture?.venue?.name || "";
+          const ciudad = p.fixture?.venue?.city || "";
+          const gHome  = p.goals?.home;
+          const gAway  = p.goals?.away;
+          const borderColor = vivo ? "#f59e0b" : jugado ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)";
+          const bgColor     = vivo ? "rgba(245,158,11,0.06)" : "rgba(255,255,255,0.02)";
+          return (
+            <div key={p.fixture?.id||i} style={{background:bgColor,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden"}}>
+              {/* Header */}
+              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",padding:"5px 12px",background:"rgba(0,0,0,0.25)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                <span style={{fontSize:10,fontWeight:700,color:quinielaColor,background:"rgba(255,255,255,0.07)",borderRadius:4,padding:"1px 6px",textTransform:"uppercase"}}>{fase}</span>
+                {vivo && <span style={{fontSize:10,fontWeight:700,color:"#f59e0b",background:"rgba(245,158,11,0.2)",borderRadius:4,padding:"1px 6px"}}>🔴 EN VIVO</span>}
+                <span style={{fontSize:11,color:"#64748b"}}>{fecha}</span>
+                <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{hora} CDMX</span>
+                <span style={{fontSize:11,color:"#475569",marginLeft:"auto"}}>📍 {sede}{ciudad?`, ${ciudad}`:""}</span>
+              </div>
+              {/* Equipos + marcador */}
+              <div style={{display:"flex",alignItems:"center",padding:"10px 14px",gap:8}}>
+                <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:22}}>{fl(homeN)}</span>
+                    <span style={{fontSize:13,fontWeight:700}}>{esp(homeN)}</span>
                   </div>
-                  <div style={{display:"flex",alignItems:"center",padding:"10px 14px",gap:8}}>
-                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontSize:22}}>{fl(homeN)}</span>
-                        <span style={{fontSize:13,fontWeight:700}}>{esp(homeN)}</span>
-                      </div>
-                      {dHome && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingLeft:28}}>👤 {dHome}</span>}
-                    </div>
-                    <div style={{display:"flex",alignItems:"center",gap:4,background:"rgba(0,0,0,0.4)",borderRadius:8,padding:"6px 14px",border:"1px solid rgba(255,255,255,0.1)",minWidth:70,justifyContent:"center"}}>
-                      {jugado||vivo
-                        ? <><span style={{fontSize:22,fontWeight:900}}>{gHome??"-"}</span>
-                            <span style={{fontSize:14,color:"#475569"}}>–</span>
-                            <span style={{fontSize:22,fontWeight:900}}>{gAway??"-"}</span></>
-                        : <span style={{fontSize:13,color:"#475569",fontWeight:700}}>VS</span>
-                      }
-                    </div>
-                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
-                      <div style={{display:"flex",alignItems:"center",gap:6}}>
-                        <span style={{fontSize:13,fontWeight:700}}>{esp(awayN)}</span>
-                        <span style={{fontSize:22}}>{fl(awayN)}</span>
-                      </div>
-                      {dAway && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingRight:28}}>👤 {dAway}</span>}
-                    </div>
-                  </div>
+                  {dHome && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingLeft:28}}>👤 {dHome}</span>}
                 </div>
-              );
-            })}
-            {listaCalendario.length===0 && <p style={{color:"#64748b",fontSize:13,textAlign:"center",padding:20}}>No hay partidos en esta vista.</p>}
-          </div>
-        </div>
-      )}
-
-      {/* ── DESGLOSE ── */}
-      {subTab==="desglose" && (
-        <div>
-          {todosDesg.length===0
-            ? <p style={{color:"#64748b",fontSize:13}}>Aún no hay partidos jugados.</p>
-            : <>
-              <div style={{marginBottom:6}}>
-                <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Jugador:</span>
-                {jugadoresList.map(j=>btnF(j,filtroJugador,setFiltroJugador,j==="TODOS"?"Todos":j))}
+                <div style={{display:"flex",alignItems:"center",gap:4,background:"rgba(0,0,0,0.4)",borderRadius:8,padding:"6px 14px",border:"1px solid rgba(255,255,255,0.1)",minWidth:70,justifyContent:"center"}}>
+                  {jugado||vivo
+                    ? <><span style={{fontSize:22,fontWeight:900}}>{gHome??"-"}</span>
+                        <span style={{fontSize:14,color:"#475569"}}>–</span>
+                        <span style={{fontSize:22,fontWeight:900}}>{gAway??"-"}</span></>
+                    : <span style={{fontSize:13,color:"#475569",fontWeight:700}}>VS</span>
+                  }
+                </div>
+                <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:13,fontWeight:700}}>{esp(awayN)}</span>
+                    <span style={{fontSize:22}}>{fl(awayN)}</span>
+                  </div>
+                  {dAway && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingRight:28}}>👤 {dAway}</span>}
+                </div>
               </div>
-              <div style={{marginBottom:6}}>
-                <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Fase:</span>
-                {fasesList.map(f=>btnF(f,filtroFase2,setFiltroFase2,f==="TODOS"?"Todas":f))}
-              </div>
-              <div style={{marginBottom:14}}>
-                <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ordenar:</span>
-                {SORTS.map(s=>(
-                  <button key={s.k} style={{...S.btnF,...(sortBy===s.k?S.btnFA:{})}} onClick={()=>handleSortDesg(s.k)}>
-                    {s.lbl}{sortBy===s.k?(sortDir==="asc"?" ↑":" ↓"):""}
-                  </button>
-                ))}
-              </div>
-              <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{filtradosDesg.length} partidos</div>
-              <DesglosePartidos tabla={tabla} reglas={reglas} filtrados={filtradosDesg}/>
-            </>
-          }
-        </div>
-      )}
+              {/* Desglose pts (solo jugados) */}
+              {jugado && desgRows.length>0 && (
+                <div style={{padding:"0 12px 10px",display:"flex",flexDirection:"column",gap:4}}>
+                  {desgRows.map((x,j)=>(
+                    <PtsDesglose key={j} r={x.r} dueno={x.dueno} R={reglas} ko={esKO(p.league?.round)}/>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {lista.length===0 && <p style={{color:"#64748b",fontSize:13,textAlign:"center",padding:20}}>No hay partidos en esta vista.</p>}
+      </div>
     </div>
   );
 }
