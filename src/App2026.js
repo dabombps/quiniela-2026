@@ -44,8 +44,8 @@ const DUENOS_AMIGOS_DEFAULT = {
 const DUENOS_FAMILIA_DEFAULT = {
   "Curaçao":"Leo","Saudi Arabia":"Leo","Tunisia":"Leo","Egypt":"Leo",
   "Senegal":"Leo","Japan":"Leo","Belgium":"Leo","Argentina":"Leo",
-  "Brazil":"Carlos","Germany":"Carlos","United States":"Carlos","Turkey":"Carlos",
-  "Czech Republic":"Carlos","Algeria":"Carlos","New Zealand":"Carlos","Iraq":"Carlos",
+  "Iraq":"Carlos","New Zealand":"Carlos","Algeria":"Carlos","Czech Republic":"Carlos",
+  "Turkey":"Carlos","United States":"Carlos","Germany":"Carlos","Brazil":"Carlos",
   "Cape Verde":"Marioly","South Africa":"Marioly","Iran":"Marioly","Bosnia":"Marioly",
   "Austria":"Marioly","Switzerland":"Marioly","Norway":"Marioly","France":"Marioly",
   "Uzbekistan":"Rodrigo","Qatar":"Rodrigo","Australia":"Rodrigo","Canada":"Rodrigo",
