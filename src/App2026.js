@@ -349,7 +349,8 @@ export default function App({ quinielaId = "familia" }) {
   const evCargados = Object.keys(eventos).length;
   const pctEventos = jugados.length>0 ? Math.round(evCargados/jugados.length*100) : 0;
   const allParticipantes = [...new Set(Object.values(duenos).filter(Boolean))].sort();
-  const todosEquiposAsignados = EQUIPOS_2026.filter(eq=>!duenos[eq]);
+  const equiposQuiniela = Object.keys(duenos);
+  const todosEquiposAsignados = equiposQuiniela.filter(eq=>!duenos[eq]);
   const med = p=>p===1?"🥇":p===2?"🥈":p===3?"🥉":`${p}.`;
 
   const TABS=[
@@ -571,8 +572,38 @@ export default function App({ quinielaId = "familia" }) {
               <div style={S.debugRow}><span>Eventos/tarjetas:</span><span style={{color:pctEventos===100?"#4ade80":"#fbbf24"}}>{evCargados}/{jugados.length} ({pctEventos}%)</span></div>
               <div style={S.debugRow}><span>Standings:</span><span style={{color:Object.keys(standings).length>0?"#4ade80":"#f87171"}}>{Object.keys(standings).length} equipos</span></div>
               <div style={S.debugRow}><span>Participantes asignados:</span><span>{Object.keys(eqPorD).length} de {NUM_PARTICIPANTES}</span></div>
-              <div style={S.debugRow}><span>Equipos sin asignar:</span><span style={{color:todosEquiposAsignados.length>0?"#fbbf24":"#4ade80"}}>{todosEquiposAsignados.length} de 48</span></div>
+              <div style={S.debugRow}><span>Equipos sin asignar:</span><span style={{color:todosEquiposAsignados.length>0?"#fbbf24":"#4ade80"}}>{todosEquiposAsignados.length} de {equiposQuiniela.length}</span></div>
             </div>
+            {/* Nombres API vs nuestras claves */}
+            {partidos.length>0&&(()=>{
+              const apiNames = [...new Set(partidos.flatMap(p=>[p.teams?.home?.name,p.teams?.away?.name].filter(Boolean)))].sort();
+              const noReconocidos = apiNames.filter(n=>!duenos[normalizeName(n)]);
+              const nuestrosSinPartido = equiposQuiniela.filter(eq=>!apiNames.some(n=>normalizeName(n)===eq));
+              return(
+                <div style={{...S.debugBox,marginTop:10}}>
+                  <div style={{fontSize:12,color:QUINIELA_COLOR,fontWeight:700,marginBottom:8}}>🔍 Diagnóstico de nombres</div>
+                  {noReconocidos.length>0?(
+                    <div style={{marginBottom:8}}>
+                      <div style={{fontSize:11,color:"#fbbf24",fontWeight:700,marginBottom:4}}>⚠️ Nombres API sin dueño ({noReconocidos.length}):</div>
+                      {noReconocidos.map(n=>(
+                        <div key={n} style={{fontSize:11,color:"#94a3b8",padding:"1px 0"}}>
+                          API: <span style={{color:"#f87171",fontWeight:700}}>"{n}"</span>
+                          {" → normalizeName: "}<span style={{color:"#fbbf24"}}>"{normalizeName(n)}"</span>
+                        </div>
+                      ))}
+                    </div>
+                  ):<div style={{fontSize:11,color:"#4ade80",marginBottom:8}}>✅ Todos los nombres API reconocidos</div>}
+                  {nuestrosSinPartido.length>0&&(
+                    <div>
+                      <div style={{fontSize:11,color:"#64748b",fontWeight:700,marginBottom:4}}>📋 Nuestros equipos sin partido aún:</div>
+                      {nuestrosSinPartido.map(n=>(
+                        <div key={n} style={{fontSize:11,color:"#475569",padding:"1px 0"}}>{fl(n)} {esp(n)}</div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div style={{...S.debugBox,marginTop:10}}>
               <div style={{fontSize:12,color:QUINIELA_COLOR,fontWeight:700,marginBottom:6}}>Log</div>
               {logMsgs.map((l,i)=><div key={i} style={{fontSize:11,color:"#64748b",padding:"2px 0"}}>{l}</div>)}
@@ -650,7 +681,7 @@ export default function App({ quinielaId = "familia" }) {
                 <H2 color={QUINIELA_COLOR}>Asignar Equipos</H2>
                 {todosEquiposAsignados.length>0&&(
                   <div style={{...S.infoBox,marginBottom:12}}>
-                    ⚠️ {todosEquiposAsignados.length} equipos sin asignar: {todosEquiposAsignados.map(e=>esp(e)).join(", ")}
+                    ⚠️ {todosEquiposAsignados.length} de {equiposQuiniela.length} equipos sin asignar: {todosEquiposAsignados.map(e=>esp(e)).join(", ")}
                   </div>
                 )}
                 <div style={S.listaEq}>
