@@ -691,13 +691,17 @@ export default function App({ quinielaId = "familia" }) {
 
 // ─── TabPartidos ──────────────────────────────────────────────────────────────
 function TabPartidos({ partidos, tabla, reglas, duenos, quinielaColor }) {
-  const [vista, setVista] = useState("todos"); // "todos" | "jugados" | "porjugar"
-  const [sortDir, setSortDir] = useState("asc");
+  const [vista,         setVista]         = useState("todos");
+  const [sortDir,       setSortDir]       = useState("asc");
+  const [filtroJugador, setFiltroJugador] = useState("TODOS");
+  const [filtroFase2,   setFiltroFase2]   = useState("TODOS");
+  const [sortBy,        setSortBy]        = useState("fecha");
+  const [subTab,        setSubTab]        = useState("calendario"); // "calendario" | "desglose"
 
   const FINAL = ["FT","AET","PEN","AWD","WO"];
+
   const fmt = (isoDate) => {
     if(!isoDate) return {fecha:"",hora:""};
-    // Convertir a hora CDMX (UTC-6)
     const d = new Date(isoDate);
     const cdmx = new Date(d.getTime() - 6*60*60*1000);
     const fecha = cdmx.toLocaleDateString("es-MX",{day:"2-digit",month:"short",weekday:"short",timeZone:"UTC"});
@@ -705,10 +709,12 @@ function TabPartidos({ partidos, tabla, reglas, duenos, quinielaColor }) {
     return {fecha, hora};
   };
 
-  // Construir mapa equipo→dueño para mostrar quién tiene cada equipo
   const eqDueno = duenos || {};
 
-  const lista = [...partidos]
+  // ── Calendario ──
+  const handleSortCal = () => setSortDir(d => d==="asc"?"desc":"asc");
+
+  const listaCalendario = [...partidos]
     .filter(p => {
       const jugado = FINAL.includes(p.fixture?.status?.short);
       if(vista==="jugados") return jugado;
@@ -720,107 +726,11 @@ function TabPartidos({ partidos, tabla, reglas, duenos, quinielaColor }) {
       return sortDir==="asc" ? cmp : -cmp;
     });
 
-  const btnV = (v, lbl) => (
-    <button key={v} style={{...S.btnF,...(vista===v?S.btnFA:{})}} onClick={()=>setVista(v)}>{lbl}</button>
-  );
+  // ── Desglose ──
+  const handleSortDesg = k => { if(sortBy===k) setSortDir(d=>d==="asc"?"desc":"asc"); else{setSortBy(k);setSortDir("asc");}};
 
-  return (
-    <div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:12}}>
-        <div>
-          <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ver:</span>
-          {btnV("todos","Todos")}
-          {btnV("jugados","✅ Jugados")}
-          {btnV("porjugar","⏳ Por jugar")}
-        </div>
-        <button style={{...S.btnF,...(sortDir==="asc"?S.btnFA:{})}} onClick={()=>setSortDir(d=>d==="asc"?"desc":"asc")}>
-          📅 Fecha {sortDir==="asc"?"↑":"↓"}
-        </button>
-      </div>
-      <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{lista.length} partidos</div>
-      <div style={{display:"flex",flexDirection:"column",gap:8}}>
-        {lista.map((p,i) => {
-          const home = p.teams?.home?.name;
-          const away = p.teams?.away?.name;
-          const homeN = normalizeName(home);
-          const awayN = normalizeName(away);
-          const dHome = eqDueno[homeN];
-          const dAway = eqDueno[awayN];
-          const jugado = FINAL.includes(p.fixture?.status?.short);
-          const vivo = ["1H","2H","HT","ET","BT","P"].includes(p.fixture?.status?.short);
-          const gHome = p.goals?.home;
-          const gAway = p.goals?.away;
-          const {fecha, hora} = fmt(p.fixture?.date);
-          const sede = p.fixture?.venue?.name || "";
-          const ciudad = p.fixture?.venue?.city || "";
-          const fase = faseLabel(p.league?.round);
-
-          const borderColor = vivo ? "#f59e0b" : jugado ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)";
-          const bgColor = vivo ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.02)";
-
-          return (
-            <div key={p.fixture?.id||i} style={{background:bgColor,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden"}}>
-              {/* Header */}
-              <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",padding:"5px 12px",background:"rgba(0,0,0,0.25)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
-                <span style={{fontSize:10,fontWeight:700,color:quinielaColor,background:"rgba(255,255,255,0.07)",borderRadius:4,padding:"1px 6px",textTransform:"uppercase"}}>{fase}</span>
-                {vivo && <span style={{fontSize:10,fontWeight:700,color:"#f59e0b",background:"rgba(245,158,11,0.2)",borderRadius:4,padding:"1px 6px"}}>🔴 EN VIVO</span>}
-                <span style={{fontSize:11,color:"#64748b"}}>{fecha}</span>
-                <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{hora} CDMX</span>
-                <span style={{fontSize:11,color:"#475569",marginLeft:"auto"}}>📍 {sede}{ciudad?`, ${ciudad}`:""}</span>
-              </div>
-              {/* Partido */}
-              <div style={{display:"flex",alignItems:"center",padding:"10px 14px",gap:8}}>
-                {/* Local */}
-                <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:22}}>{fl(homeN)}</span>
-                    <span style={{fontSize:13,fontWeight:700}}>{esp(homeN)}</span>
-                  </div>
-                  {dHome && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingLeft:28}}>👤 {dHome}</span>}
-                </div>
-                {/* Marcador */}
-                <div style={{display:"flex",alignItems:"center",gap:4,background:"rgba(0,0,0,0.4)",borderRadius:8,padding:"6px 14px",border:"1px solid rgba(255,255,255,0.1)",minWidth:70,justifyContent:"center"}}>
-                  {jugado||vivo
-                    ? <><span style={{fontSize:22,fontWeight:900}}>{gHome??"-"}</span>
-                        <span style={{fontSize:14,color:"#475569"}}>–</span>
-                        <span style={{fontSize:22,fontWeight:900}}>{gAway??"-"}</span></>
-                    : <span style={{fontSize:13,color:"#475569",fontWeight:700}}>VS</span>
-                  }
-                </div>
-                {/* Visitante */}
-                <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    <span style={{fontSize:13,fontWeight:700}}>{esp(awayN)}</span>
-                    <span style={{fontSize:22}}>{fl(awayN)}</span>
-                  </div>
-                  {dAway && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingRight:28}}>👤 {dAway}</span>}
-                </div>
-              </div>
-            </div>
-          );
-        })}
-        {lista.length===0 && <p style={{color:"#64748b",fontSize:13,textAlign:"center",padding:20}}>No hay partidos en esta vista.</p>}
-      </div>
-      {/* Desglose por puntos (solo si hay jugados) */}
-      {vista!=="porjugar" && tabla.length>0 && (
-        <div style={{marginTop:24}}>
-          <DesglosePartidos tabla={tabla} reglas={reglas}/>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── DesglosePartidos ─────────────────────────────────────────────────────────
-function DesglosePartidos({ tabla, reglas }) {
-  const [filtroJugador, setFiltroJugador] = useState("TODOS");
-  const [filtroFase2,   setFiltroFase2]   = useState("TODOS");
-  const [sortBy,        setSortBy]        = useState("fecha");
-  const [sortDir,       setSortDir]       = useState("asc");
-  const handleSort = k => { if(sortBy===k) setSortDir(d=>d==="asc"?"desc":"asc"); else{setSortBy(k);setSortDir("asc");}};
-
-  const todos = tabla.flatMap(row=>
-    row.det.filter(d=>["FT","AET","PEN","AWD","WO"].includes(d.par.fixture?.status?.short))
+  const todosDesg = tabla.flatMap(row=>
+    row.det.filter(d=>FINAL.includes(d.par.fixture?.status?.short))
     .map(d=>({
       dueno:row.d, eq:d.eq, rival:d.r.esL?d.par.teams?.away?.name:d.par.teams?.home?.name,
       gfavor:d.r.esL?d.par.goals?.home:d.par.goals?.away,
@@ -829,10 +739,9 @@ function DesglosePartidos({ tabla, reglas }) {
       fecha:d.par.fixture?.date||"", am:d.r.am, ro:d.r.ro, pt:d.r.pt, r:d.r, par:d.par,
     }))
   );
-
-  const jugadores=["TODOS",...new Set(todos.map(t=>t.dueno))];
-  const fases2=["TODOS",...new Set(todos.map(t=>t.fase).filter(Boolean))];
-  let filtrados=[...todos]
+  const jugadoresList=["TODOS",...new Set(todosDesg.map(t=>t.dueno))];
+  const fasesList=["TODOS",...new Set(todosDesg.map(t=>t.fase).filter(Boolean))];
+  const filtradosDesg=[...todosDesg]
     .filter(t=>filtroJugador==="TODOS"||t.dueno===filtroJugador)
     .filter(t=>filtroFase2==="TODOS"||t.fase===filtroFase2)
     .sort((a,b)=>{
@@ -852,23 +761,126 @@ function DesglosePartidos({ tabla, reglas }) {
 
   return (
     <div>
-      <H2>Desglose por Partido</H2>
-      <div style={{marginBottom:6}}>
-        <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Jugador:</span>
-        {jugadores.map(j=>btnF(j,filtroJugador,setFiltroJugador,j==="TODOS"?"Todos":j))}
-      </div>
-      <div style={{marginBottom:6}}>
-        <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Fase:</span>
-        {fases2.map(f=>btnF(f,filtroFase2,setFiltroFase2,f==="TODOS"?"Todas":f))}
-      </div>
-      <div style={{marginBottom:14}}>
-        <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ordenar:</span>
-        {SORTS.map(s=>(
-          <button key={s.k} style={{...S.btnF,...(sortBy===s.k?S.btnFA:{})}} onClick={()=>handleSort(s.k)}>
-            {s.lbl}{sortBy===s.k?(sortDir==="asc"?" ↑":" ↓"):""}
-          </button>
+      {/* Sub-tabs */}
+      <div style={{display:"flex",gap:4,marginBottom:14,borderBottom:"1px solid rgba(255,255,255,0.08)",paddingBottom:10}}>
+        {[["calendario","📅 Calendario"],["desglose","📊 Desglose pts"]].map(([v,lbl])=>(
+          <button key={v} style={{...S.btnF,fontSize:12,padding:"5px 12px",...(subTab===v?S.btnFA:{})}} onClick={()=>setSubTab(v)}>{lbl}</button>
         ))}
       </div>
+
+      {/* ── CALENDARIO ── */}
+      {subTab==="calendario" && (
+        <div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8,marginBottom:12}}>
+            <div>
+              <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ver:</span>
+              {btnF("todos",vista,setVista,"Todos")}
+              {btnF("jugados",vista,setVista,"✅ Jugados")}
+              {btnF("porjugar",vista,setVista,"⏳ Por jugar")}
+            </div>
+            <button style={{...S.btnF}} onClick={handleSortCal}>
+              📅 Fecha {sortDir==="asc"?"↑":"↓"}
+            </button>
+          </div>
+          <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{listaCalendario.length} partidos</div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {listaCalendario.map((p,i) => {
+              const home = p.teams?.home?.name;
+              const away = p.teams?.away?.name;
+              const homeN = normalizeName(home);
+              const awayN = normalizeName(away);
+              const dHome = eqDueno[homeN];
+              const dAway = eqDueno[awayN];
+              const jugado = FINAL.includes(p.fixture?.status?.short);
+              const vivo = ["1H","2H","HT","ET","BT","P"].includes(p.fixture?.status?.short);
+              const gHome = p.goals?.home;
+              const gAway = p.goals?.away;
+              const {fecha, hora} = fmt(p.fixture?.date);
+              const sede = p.fixture?.venue?.name || "";
+              const ciudad = p.fixture?.venue?.city || "";
+              const fase = faseLabel(p.league?.round);
+              const borderColor = vivo ? "#f59e0b" : jugado ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)";
+              const bgColor = vivo ? "rgba(245,158,11,0.08)" : "rgba(255,255,255,0.02)";
+              return (
+                <div key={p.fixture?.id||i} style={{background:bgColor,border:`1px solid ${borderColor}`,borderRadius:10,overflow:"hidden"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",padding:"5px 12px",background:"rgba(0,0,0,0.25)",borderBottom:"1px solid rgba(255,255,255,0.05)"}}>
+                    <span style={{fontSize:10,fontWeight:700,color:quinielaColor,background:"rgba(255,255,255,0.07)",borderRadius:4,padding:"1px 6px",textTransform:"uppercase"}}>{fase}</span>
+                    {vivo && <span style={{fontSize:10,fontWeight:700,color:"#f59e0b",background:"rgba(245,158,11,0.2)",borderRadius:4,padding:"1px 6px"}}>🔴 EN VIVO</span>}
+                    <span style={{fontSize:11,color:"#64748b"}}>{fecha}</span>
+                    <span style={{fontSize:11,color:"#94a3b8",fontWeight:600}}>{hora} CDMX</span>
+                    <span style={{fontSize:11,color:"#475569",marginLeft:"auto"}}>📍 {sede}{ciudad?`, ${ciudad}`:""}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",padding:"10px 14px",gap:8}}>
+                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-start",gap:2}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:22}}>{fl(homeN)}</span>
+                        <span style={{fontSize:13,fontWeight:700}}>{esp(homeN)}</span>
+                      </div>
+                      {dHome && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingLeft:28}}>👤 {dHome}</span>}
+                    </div>
+                    <div style={{display:"flex",alignItems:"center",gap:4,background:"rgba(0,0,0,0.4)",borderRadius:8,padding:"6px 14px",border:"1px solid rgba(255,255,255,0.1)",minWidth:70,justifyContent:"center"}}>
+                      {jugado||vivo
+                        ? <><span style={{fontSize:22,fontWeight:900}}>{gHome??"-"}</span>
+                            <span style={{fontSize:14,color:"#475569"}}>–</span>
+                            <span style={{fontSize:22,fontWeight:900}}>{gAway??"-"}</span></>
+                        : <span style={{fontSize:13,color:"#475569",fontWeight:700}}>VS</span>
+                      }
+                    </div>
+                    <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:2}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6}}>
+                        <span style={{fontSize:13,fontWeight:700}}>{esp(awayN)}</span>
+                        <span style={{fontSize:22}}>{fl(awayN)}</span>
+                      </div>
+                      {dAway && <span style={{fontSize:10,color:quinielaColor,fontWeight:700,paddingRight:28}}>👤 {dAway}</span>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            {listaCalendario.length===0 && <p style={{color:"#64748b",fontSize:13,textAlign:"center",padding:20}}>No hay partidos en esta vista.</p>}
+          </div>
+        </div>
+      )}
+
+      {/* ── DESGLOSE ── */}
+      {subTab==="desglose" && (
+        <div>
+          {todosDesg.length===0
+            ? <p style={{color:"#64748b",fontSize:13}}>Aún no hay partidos jugados.</p>
+            : <>
+              <div style={{marginBottom:6}}>
+                <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Jugador:</span>
+                {jugadoresList.map(j=>btnF(j,filtroJugador,setFiltroJugador,j==="TODOS"?"Todos":j))}
+              </div>
+              <div style={{marginBottom:6}}>
+                <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Fase:</span>
+                {fasesList.map(f=>btnF(f,filtroFase2,setFiltroFase2,f==="TODOS"?"Todas":f))}
+              </div>
+              <div style={{marginBottom:14}}>
+                <span style={{fontSize:11,color:"#475569",marginRight:6,textTransform:"uppercase",letterSpacing:1}}>Ordenar:</span>
+                {SORTS.map(s=>(
+                  <button key={s.k} style={{...S.btnF,...(sortBy===s.k?S.btnFA:{})}} onClick={()=>handleSortDesg(s.k)}>
+                    {s.lbl}{sortBy===s.k?(sortDir==="asc"?" ↑":" ↓"):""}
+                  </button>
+                ))}
+              </div>
+              <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{filtradosDesg.length} partidos</div>
+              <DesglosePartidos tabla={tabla} reglas={reglas} filtrados={filtradosDesg}/>
+            </>
+          }
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── DesglosePartidos ─────────────────────────────────────────────────────────
+function DesglosePartidos({ tabla, reglas, filtrados: filtradosProp }) {
+  // When filtrados is passed from parent (TabPartidos), use it directly
+  const filtrados = filtradosProp ?? [];
+
+  return (
+    <div>
       <div style={{fontSize:12,color:"#475569",marginBottom:10}}>{filtrados.length} partidos</div>
       <div style={{display:"flex",flexDirection:"column",gap:8}}>
         {filtrados.map((t,i)=>{
