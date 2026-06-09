@@ -15,9 +15,9 @@ const QUINIELA_CONFIGS = {
   test:    { label:"TEST",     color:"#a855f7", participantes:2, eqPorPersona:4  },
 };
 
-const CACHE_FIXTURES_MS  = 5  * 60 * 1000;
-const CACHE_EVENTS_MS    = 24 * 60 * 60 * 1000;
-const CACHE_STANDINGS_MS = 24 * 60 * 60 * 1000;
+const CACHE_FIXTURES_MS  = 30 * 1000; // 30 seg — sincronizado con Worker TTL
+const CACHE_EVENTS_MS    = 24 * 60 * 60 * 1000; // 24h — eventos no cambian
+const CACHE_STANDINGS_MS = 30 * 1000; // 30 seg — sincronizado con Worker TTL
 
 // ─── Reglas (mismas que 2022) ─────────────────────────────────────────────────
 const REGLAS_DEFAULT = {
