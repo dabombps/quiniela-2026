@@ -322,7 +322,9 @@ export default function App({ quinielaId = "familia" }) {
   const jugados = partidos.filter(p=>FINAL.includes(p.fixture?.status?.short));
   const enVivo  = partidos.filter(p=>VIVO.includes(p.fixture?.status?.short));
 
-  jugados.forEach(par=>{
+  // Score both finished AND live matches so table updates in real time
+  const aCalcular = [...jugados, ...enVivo];
+  aCalcular.forEach(par=>{
     [normalizeName(par.teams?.home?.name),normalizeName(par.teams?.away?.name)].forEach(eq=>{
       const d=duenos[eq]; if(!d||!statsD[d]) return;
       const r=calcPuntos(par,eq,eventos,reglas); if(!r) return;
@@ -332,11 +334,17 @@ export default function App({ quinielaId = "familia" }) {
     });
   });
 
-  // Standings bonus — solo aplicar si ya hay partidos terminados en el grupo
-  // Evita mostrar puntos de posición antes de que empiece el torneo
-  const hayJugados = jugados.length > 0;
-  if(hayJugados) {
+  // Standings bonus — only apply for teams whose group has played ≥1 match
+  // This prevents awarding +7/+4 to groups that haven't kicked off yet
+  const equiposConPartido = new Set(
+    aCalcular.flatMap(p=>[
+      normalizeName(p.teams?.home?.name),
+      normalizeName(p.teams?.away?.name)
+    ])
+  );
+  if(equiposConPartido.size > 0) {
     Object.entries(standings).forEach(([eq,rank])=>{
+      if(!equiposConPartido.has(eq)) return; // skip groups not yet played
       const d=duenos[eq]; if(!d||!statsD[d]) return;
       if(rank===1) statsD[d].pt+=reglas.primeroGrupo;
       else if(rank===2) statsD[d].pt+=reglas.segundoGrupo;
