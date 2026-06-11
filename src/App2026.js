@@ -251,9 +251,11 @@ export default function App({ quinielaId = "familia" }) {
       addLog(`💾 Eventos en caché (${Object.keys(eventos).length} partidos)`);
       return;
     }
-    const terminados = partidos.filter(p=>FINAL.includes(p.fixture?.status?.short));
+    const terminados = partidos.filter(p=>
+      FINAL.includes(p.fixture?.status?.short) || VIVO.includes(p.fixture?.status?.short)
+    );
     if (terminados.length===0) return;
-    const todos = terminados.filter(p=>forzar||!eventos[p.fixture.id]);
+    const todos = terminados.filter(p=>forzar||!eventos[p.fixture.id]||VIVO.includes(p.fixture?.status?.short));
     if (todos.length===0) { setEstado(e=>({...e,eventos:"ok"})); return; }
     setEstado(e=>({...e,eventos:"loading"}));
     addLog(`📡 Cargando ${todos.length} partidos (KV caché en servidor)...`);
@@ -334,22 +336,23 @@ export default function App({ quinielaId = "familia" }) {
     });
   });
 
-  // Standings bonus — only apply for teams whose group has played ≥1 match
-  // This prevents awarding +7/+4 to groups that haven't kicked off yet
-  const equiposConPartido = new Set(
-    aCalcular.flatMap(p=>[
-      normalizeName(p.teams?.home?.name),
-      normalizeName(p.teams?.away?.name)
-    ])
-  );
-  if(equiposConPartido.size > 0) {
-    Object.entries(standings).forEach(([eq,rank])=>{
-      if(!equiposConPartido.has(eq)) return; // skip groups not yet played
-      const d=duenos[eq]; if(!d||!statsD[d]) return;
-      if(rank===1) statsD[d].pt+=reglas.primeroGrupo;
-      else if(rank===2) statsD[d].pt+=reglas.segundoGrupo;
-    });
-  }
+  // Standings bonus — only apply for a group when ALL 3 group stage matches
+  // for that group are finished (i.e. each team has played 3 matches)
+  // This prevents awarding +7/+4 mid-group-stage
+  const matchesPlayedByTeam = {};
+  jugados.forEach(p => {
+    const h = normalizeName(p.teams?.home?.name);
+    const a = normalizeName(p.teams?.away?.name);
+    matchesPlayedByTeam[h] = (matchesPlayedByTeam[h]||0) + 1;
+    matchesPlayedByTeam[a] = (matchesPlayedByTeam[a]||0) + 1;
+  });
+  Object.entries(standings).forEach(([eq,rank])=>{
+    // Only award standings bonus if this team has completed all 3 group matches
+    if((matchesPlayedByTeam[eq]||0) < 3) return;
+    const d=duenos[eq]; if(!d||!statsD[d]) return;
+    if(rank===1) statsD[d].pt+=reglas.primeroGrupo;
+    else if(rank===2) statsD[d].pt+=reglas.segundoGrupo;
+  });
 
   // Bonos
   if(bonos.fairPlay&&duenos[bonos.fairPlay]&&statsD[duenos[bonos.fairPlay]]) statsD[duenos[bonos.fairPlay]].pt+=reglas.fairPlay;
