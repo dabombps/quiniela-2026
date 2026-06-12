@@ -176,8 +176,10 @@ function calcPuntos(p, eq, eventos, R) {
     pt = diff>0 ? R.ganado : diff===0 ? R.empate : R.perdido;
     if (diff>0) pt += diff*R.difGoles;
   }
+  const teamId = esL ? p.teams?.home?.id : p.teams?.away?.id;
+  const teamName = esL ? p.teams?.home?.name : p.teams?.away?.name;
   const evs=(eventos[p.fixture?.id]||[])
-    .filter(e=>e.team?.name===(esL?p.teams.home.name:p.teams.away.name));
+    .filter(e=>e.team?.id===teamId || e.team?.name===teamName);
   const am=evs.filter(e=>e.type==="Card"&&e.detail==="Yellow Card").length;
   const ro=evs.filter(e=>e.type==="Card"&&(e.detail==="Red Card"||e.detail==="Second Yellow card")).length;
   pt += am*R.amarilla + ro*R.roja;
@@ -262,8 +264,9 @@ export default function App({ quinielaId = "familia" }) {
     const nuevosEvs={...eventos}; let cargados=0,reqAPI=0,reqCache=0;
     for (const p of todos) {
       try {
-        const { data: evData, cache } = await apiFetchWithCache(`/fixtures?id=${p.fixture.id}`);
-        nuevosEvs[p.fixture.id] = evData[0]?.events||[];
+        // Use /fixtures/events endpoint — returns only events, more reliable than /fixtures?id=
+        const { data: evData, cache } = await apiFetchWithCache(`/fixtures/events?fixture=${p.fixture.id}`);
+        nuevosEvs[p.fixture.id] = evData||[];
         cargados++;
         if (cache==="HIT") reqCache++; else reqAPI++;
         if (cargados%10===0||cargados===todos.length)
