@@ -35,7 +35,7 @@ const DUENOS_AMIGOS_DEFAULT = {
   "Jordan":"Chikilín","New Zealand":"Chikilín","Scotland":"Chikilín","Turkey":"Chikilín","Norway":"Chikilín","Netherlands":"Chikilín",
   "Panama":"Foca","Australia":"Foca","Algeria":"Foca","Austria":"Foca","Belgium":"Foca","Argentina":"Foca",
   "Iraq":"Manu","Saudi Arabia":"Manu","Korea Republic":"Manu","Sweden":"Manu","Mexico":"Manu","France":"Manu",
-  "Qatar":"Novoa","South Africa":"Novoa","Czech Republic":"Novoa","Croatia":"Novoa","Ecuador":"Novoa","Portugal":"Novoa",
+  "Qatar":"Novoa","South Africa":"Novoa","Czechia":"Novoa","Croatia":"Novoa","Ecuador":"Novoa","Portugal":"Novoa",
   "Haiti":"Gabrich","DR Congo":"Gabrich","Egypt":"Gabrich","Paraguay":"Gabrich","Colombia":"Gabrich","Germany":"Gabrich",
   "Cape Verde":"Rodrigo","Iran":"Rodrigo","Bosnia":"Rodrigo","Switzerland":"Rodrigo","Morocco":"Rodrigo","Spain":"Rodrigo",
 };
@@ -44,7 +44,7 @@ const DUENOS_AMIGOS_DEFAULT = {
 const DUENOS_FAMILIA_DEFAULT = {
   "Curaçao":"Leo","Saudi Arabia":"Leo","Tunisia":"Leo","Egypt":"Leo",
   "Senegal":"Leo","Japan":"Leo","Belgium":"Leo","Argentina":"Leo",
-  "Iraq":"Carlos","New Zealand":"Carlos","Algeria":"Carlos","Czech Republic":"Carlos",
+  "Iraq":"Carlos","New Zealand":"Carlos","Algeria":"Carlos","Czechia":"Carlos",
   "Turkey":"Carlos","United States":"Carlos","Germany":"Carlos","Brazil":"Carlos",
   "Cape Verde":"Marioly","South Africa":"Marioly","Iran":"Marioly","Bosnia":"Marioly",
   "Austria":"Marioly","Switzerland":"Marioly","Norway":"Marioly","France":"Marioly",
@@ -67,7 +67,7 @@ const EQUIPOS_2026 = [
   // UEFA
   "Spain","France","England","Germany","Portugal","Netherlands","Italy","Belgium",
   "Croatia","Switzerland","Austria","Denmark","Sweden","Poland","Serbia","Turkey",
-  "Hungary","Scotland","Romania","Slovakia","Slovenia","Czech Republic","Albania","Ukraine","Georgia",
+  "Hungary","Scotland","Romania","Slovakia","Slovenia","Czechia","Albania","Ukraine","Georgia",
   // AFC
   "Japan","South Korea","Saudi Arabia","Iran","Australia","Qatar","Uzbekistan","Jordan","Iraq","Indonesia","Oman",
   // CAF
@@ -90,7 +90,7 @@ const EQUIPOS_ES = {
   "Switzerland":"Suiza","Austria":"Austria","Denmark":"Dinamarca",
   "Sweden":"Suecia","Poland":"Polonia","Serbia":"Serbia","Turkey":"Turquía",
   "Hungary":"Hungría","Scotland":"Escocia","Romania":"Rumanía",
-  "Slovakia":"Eslovaquia","Slovenia":"Eslovenia","Czech Republic":"Rep. Checa",
+  "Slovakia":"Eslovaquia","Slovenia":"Eslovenia","Czechia":"Chequia",
   "Albania":"Albania","Ukraine":"Ucrania","Georgia":"Georgia",
   "Japan":"Japón","South Korea":"Corea del Sur","Saudi Arabia":"Arabia Saudita",
   "Iran":"Irán","Australia":"Australia","Qatar":"Qatar",
@@ -117,7 +117,7 @@ const FL = {
   "Netherlands":"🇳🇱","Italy":"🇮🇹","Belgium":"🇧🇪","Croatia":"🇭🇷","Switzerland":"🇨🇭",
   "Austria":"🇦🇹","Denmark":"🇩🇰","Sweden":"🇸🇪","Poland":"🇵🇱","Serbia":"🇷🇸",
   "Turkey":"🇹🇷","Hungary":"🇭🇺","Scotland":"🏴󠁧󠁢󠁳󠁣󠁴󠁿","Romania":"🇷🇴","Slovakia":"🇸🇰",
-  "Slovenia":"🇸🇮","Czech Republic":"🇨🇿","Albania":"🇦🇱","Ukraine":"🇺🇦","Georgia":"🇬🇪",
+  "Slovenia":"🇸🇮","Czechia":"🇨🇿","Albania":"🇦🇱","Ukraine":"🇺🇦","Georgia":"🇬🇪",
   "Japan":"🇯🇵","South Korea":"🇰🇷","Korea Republic":"🇰🇷","Saudi Arabia":"🇸🇦",
   "Iran":"🇮🇷","Australia":"🇦🇺","Qatar":"🇶🇦","Uzbekistan":"🇺🇿","Jordan":"🇯🇴",
   "Iraq":"🇮🇶","Indonesia":"🇮🇩","Oman":"🇴🇲",
@@ -156,7 +156,7 @@ const LST = k     => { try { localStorage.setItem(k+"_ts", String(Date.now())); 
 // ─── Cálculo puntos ───────────────────────────────────────────────────────────
 // Normalize team names that API may return differently
 function normalizeName(n) {
-  const map = {"USA":"United States","South Korea":"Korea Republic","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast","IR Iran":"Iran","Korea DPR":"North Korea","Curacao":"Curaçao","Türkiye":"Turkey","Bosnia & Herzegovina":"Bosnia","Cape Verde Islands":"Cape Verde","Congo DR":"DR Congo"};
+  const map = {"USA":"United States","South Korea":"Korea Republic","Ivory Coast":"Ivory Coast","Côte d'Ivoire":"Ivory Coast","IR Iran":"Iran","Korea DPR":"North Korea","Curacao":"Curaçao","Türkiye":"Turkey","Bosnia & Herzegovina":"Bosnia","Cape Verde Islands":"Cape Verde","Congo DR":"DR Congo","Czechia":"Czechia"};
   return map[n] || n;
 }
 function calcPuntos(p, eq, eventos, R) {
