@@ -335,7 +335,7 @@ export default function App({ quinielaId = "familia" }) {
       const r=calcPuntos(par,eq,eventos,reglas); if(!r) return;
       const s=statsD[d];
       s.pt+=r.pt; if(r.diff>0)s.g++;else if(r.diff===0&&!r.ko)s.e++;else s.p_++;
-      s.gl+=r.mg; s.am+=r.am; s.ro+=r.ro; s.det.push({par,eq,r});
+      s.gl+=r.diff; s.am+=r.am; s.ro+=r.ro; s.det.push({par,eq,r});
     });
   });
 
@@ -463,7 +463,7 @@ export default function App({ quinielaId = "familia" }) {
                           <span style={S.chip}>✅ {row.g}G</span>
                           <span style={S.chip}>➖ {row.e}E</span>
                           <span style={S.chip}>❌ {row.p_}P</span>
-                          <span style={S.chip}>⚽ {row.gl}</span>
+                          <span style={S.chip}>⚽ {row.gl>0?"+":""}{row.gl}</span>
                           {row.am>0&&<span style={{...S.chip,color:"#fbbf24"}}>🟨 {row.am}</span>}
                           {row.ro>0&&<span style={{...S.chip,color:"#f87171"}}>🟥 {row.ro}</span>}
                         </div>
