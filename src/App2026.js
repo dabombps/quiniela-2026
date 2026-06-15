@@ -335,7 +335,7 @@ export default function App({ quinielaId = "familia" }) {
       const r=calcPuntos(par,eq,eventos,reglas); if(!r) return;
       const s=statsD[d];
       s.pt+=r.pt; if(r.diff>0)s.g++;else if(r.diff===0&&!r.ko)s.e++;else s.p_++;
-      s.gl+=r.diff; s.am+=r.am; s.ro+=r.ro; s.det.push({par,eq,r});
+      s.gl+=(r.diff>0?r.diff:0); s.am+=r.am; s.ro+=r.ro; s.det.push({par,eq,r});
     });
   });
 
