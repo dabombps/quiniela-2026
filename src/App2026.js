@@ -310,9 +310,8 @@ export default function App({ quinielaId = "familia" }) {
         cargados++;
         if (cache==="HIT") reqCache++; else reqAPI++;
         if (cargados%5===0||cargados===todos.length) {
-          // Save incrementally so progress isn't lost on interruption
+          // Save to localStorage incrementally — but DON'T call setEventos to avoid re-renders
           LS(`${KV_PREFIX}_evs`,nuevosEvs); LST(`${KV_PREFIX}_evs`);
-          setEventos({...nuevosEvs});
           addLog(`${cache==="HIT"?"💾":"🌐"} ${cargados}/${todos.length} · API:${reqAPI} KV:${reqCache}`);
         }
         await new Promise(r=>setTimeout(r,10000)); // 10s between requests = max 6/min, safe under Pro limit
