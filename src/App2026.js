@@ -180,7 +180,17 @@ function calcPuntos(p, eq, eventos, R) {
   const teamName = esL ? p.teams?.home?.name : p.teams?.away?.name;
   const evs=(eventos[p.fixture?.id]||[])
     .filter(e=>e.team?.id===teamId || e.team?.name===teamName);
-  const am=evs.filter(e=>e.type==="Card"&&e.detail==="Yellow Card").length;
+  // Players sent off via 2nd yellow: API sends both "Yellow Card" + "Second Yellow card"
+  // We should only penalize the red (-5), not also the first yellow (-1)
+  const secondYellowPlayers = new Set(
+    evs.filter(e=>e.type==="Card"&&(e.detail==="Second Yellow card"||e.detail==="Second Yellow Card"))
+       .map(e=>e.player?.id)
+  );
+  const am=evs.filter(e=>
+    e.type==="Card" &&
+    e.detail==="Yellow Card" &&
+    !secondYellowPlayers.has(e.player?.id) // exclude if player later got 2nd yellow
+  ).length;
   const ro=evs.filter(e=>e.type==="Card"&&(e.detail==="Red Card"||e.detail==="Second Yellow card"||e.detail==="Second Yellow Card"||e.detail==="Direct Red Card")).length;
   pt += am*R.amarilla + ro*R.roja;
   return { pt, mg, sg, diff, ko, am, ro, esL };
