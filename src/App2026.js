@@ -181,7 +181,7 @@ function calcPuntos(p, eq, eventos, R) {
   const evs=(eventos[p.fixture?.id]||[])
     .filter(e=>e.team?.id===teamId || e.team?.name===teamName);
   const am=evs.filter(e=>e.type==="Card"&&e.detail==="Yellow Card").length;
-  const ro=evs.filter(e=>e.type==="Card"&&(e.detail==="Red Card"||e.detail==="Second Yellow card")).length;
+  const ro=evs.filter(e=>e.type==="Card"&&(e.detail==="Red Card"||e.detail==="Second Yellow card"||e.detail==="Second Yellow Card"||e.detail==="Direct Red Card")).length;
   pt += am*R.amarilla + ro*R.roja;
   return { pt, mg, sg, diff, ko, am, ro, esL };
 }
@@ -257,7 +257,14 @@ export default function App({ quinielaId = "familia" }) {
       FINAL.includes(p.fixture?.status?.short) || VIVO.includes(p.fixture?.status?.short)
     );
     if (terminados.length===0) return;
-    const todos = terminados.filter(p=>forzar||!eventos[p.fixture.id]||VIVO.includes(p.fixture?.status?.short));
+    const todos = terminados.filter(p=>{
+      if(forzar) return true;
+      if(VIVO.includes(p.fixture?.status?.short)) return true;
+      // Always re-fetch knockout matches to ensure cards are current
+      if(esKO(p.league?.round)) return true;
+      // For group matches, skip if already have events
+      return !eventos[p.fixture.id] || eventos[p.fixture.id].length === 0;
+    });
     if (todos.length===0) { setEstado(e=>({...e,eventos:"ok"})); return; }
     setEstado(e=>({...e,eventos:"loading"}));
     addLog(`📡 Cargando ${todos.length} partidos (KV caché en servidor)...`);
