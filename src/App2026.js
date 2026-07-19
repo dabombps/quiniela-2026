@@ -288,10 +288,20 @@ export default function App({ quinielaId = "familia" }) {
         if (cache==="HIT") reqCache++; else reqAPI++;
         if (cargados%10===0||cargados===todos.length)
           addLog(`${cache==="HIT"?"💾":"🌐"} ${cargados}/${todos.length} · API:${reqAPI} KV:${reqCache}`);
-        await new Promise(r=>setTimeout(r,150));
+        await new Promise(r=>setTimeout(r,8000)); // 8s between requests = max 7/min, under rate limit
       } catch(e) {
-        if (e.message.includes("limit")||e.message.includes("429")) {
-          addLog("🛑 Límite alcanzado — reintenta mañana"); break;
+        if (e.message.includes("limit")||e.message.includes("429")||e.message.includes("rateLimit")) {
+          addLog(`⏳ Límite alcanzado — esperando 60s (${cargados}/${todos.length} cargados)`);
+          await new Promise(r=>setTimeout(r,60000)); // wait 60 seconds then continue
+          // Retry this match
+          try {
+            const { data: evData, cache } = await apiFetchWithCache(`/fixtures/events?fixture=${p.fixture.id}`);
+            nuevosEvs[p.fixture.id] = evData||[];
+            cargados++;
+            if (cache==="HIT") reqCache++; else reqAPI++;
+          } catch(e2) {
+            addLog("🛑 Límite persistente — continuando con lo cargado"); break;
+          }
         }
       }
     }
