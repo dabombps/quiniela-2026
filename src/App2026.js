@@ -4,6 +4,20 @@ import { useState, useEffect, useCallback, useRef } from "react";
 // QUINIELA MUNDIAL 2026 — USA/México/Canadá
 // ─────────────────────────────────────────────────────────────────────────────
 const WORKER_URL = "https://quiniela-proxy.dabombps.workers.dev";
+const API_DIRECT_URL = "https://v3.football.api-sports.io";
+const API_DIRECT_KEY = process.env.REACT_APP_API_KEY || "";
+
+async function apiFetchDirect(path) {
+  const res = await fetch(`${API_DIRECT_URL}${path}`, {
+    headers: { "x-apisports-key": API_DIRECT_KEY },
+    signal: AbortSignal.timeout(20000)
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  if (data.errors && Object.keys(data.errors).length > 0)
+    throw new Error(Object.values(data.errors)[0]);
+  return { data: data.response||[], cache: "DIRECT" };
+}
 const LEAGUE_ID  = 1;
 const SEASON     = 2026;
 const ADMIN_PASS = "Contraseña";
@@ -288,7 +302,7 @@ export default function App({ quinielaId = "familia" }) {
     for (const p of todos) {
       try {
         // Use /fixtures/events endpoint — returns only events, more reliable than /fixtures?id=
-        const { data: evData, cache } = await apiFetchWithCache(`/fixtures/events?fixture=${p.fixture.id}`);
+        const { data: evData, cache } = await apiFetchDirect(`/fixtures/events?fixture=${p.fixture.id}`);
         nuevosEvs[p.fixture.id] = evData||[];
         cargados++;
         if (cache==="HIT") reqCache++; else reqAPI++;
@@ -301,7 +315,7 @@ export default function App({ quinielaId = "familia" }) {
           await new Promise(r=>setTimeout(r,60000)); // wait 60 seconds then continue
           // Retry this match
           try {
-            const { data: evData, cache } = await apiFetchWithCache(`/fixtures/events?fixture=${p.fixture.id}`);
+            const { data: evData, cache } = await apiFetchDirect(`/fixtures/events?fixture=${p.fixture.id}`);
             nuevosEvs[p.fixture.id] = evData||[];
             cargados++;
             if (cache==="HIT") reqCache++; else reqAPI++;
