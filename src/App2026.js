@@ -309,8 +309,12 @@ export default function App({ quinielaId = "familia" }) {
         nuevosEvs[p.fixture.id] = evData||[];
         cargados++;
         if (cache==="HIT") reqCache++; else reqAPI++;
-        if (cargados%10===0||cargados===todos.length)
+        if (cargados%5===0||cargados===todos.length) {
+          // Save incrementally so progress isn't lost on interruption
+          LS(`${KV_PREFIX}_evs`,nuevosEvs); LST(`${KV_PREFIX}_evs`);
+          setEventos({...nuevosEvs});
           addLog(`${cache==="HIT"?"💾":"🌐"} ${cargados}/${todos.length} · API:${reqAPI} KV:${reqCache}`);
+        }
         await new Promise(r=>setTimeout(r,10000)); // 10s between requests = max 6/min, safe under Pro limit
       } catch(e) {
         if (e.message.includes("limit")||e.message.includes("429")||e.message.includes("rateLimit")) {
