@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// QUINIELA MUNDIAL 2026 — USA/México/Canadá
+// QUINIELA MUNDIAL 2026 — USA/México/Canadá 
 // ─────────────────────────────────────────────────────────────────────────────
 const WORKER_URL = "https://quiniela-proxy.dabombps.workers.dev";
 const API_DIRECT_URL = "https://v3.football.api-sports.io";
