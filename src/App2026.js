@@ -271,7 +271,9 @@ export default function App({ quinielaId = "familia" }) {
   }, [partidos.length]);
 
   // ── Fetch eventos ───────────────────────────────────────────────────────────
+  const cargandoEventosRef = useRef(false);
   const fetchEventos = useCallback(async (forzar=false) => {
+    if (cargandoEventosRef.current && !forzar) return; // already loading, skip
     const ahora=Date.now(), ts=LDT(`${KV_PREFIX}_evs`);
     const terminadosIds = partidos
       .filter(p=>FINAL.includes(p.fixture?.status?.short)||VIVO.includes(p.fixture?.status?.short))
@@ -296,6 +298,7 @@ export default function App({ quinielaId = "familia" }) {
       return !eventos[p.fixture.id] || eventos[p.fixture.id].length === 0;
     });
     if (todos.length===0) { setEstado(e=>({...e,eventos:"ok"})); return; }
+    cargandoEventosRef.current = true;
     setEstado(e=>({...e,eventos:"loading"}));
     addLog(`📡 Cargando ${todos.length} partidos (KV caché en servidor)...`);
     const nuevosEvs={...eventos}; let cargados=0,reqAPI=0,reqCache=0;
@@ -320,13 +323,14 @@ export default function App({ quinielaId = "familia" }) {
             cargados++;
             if (cache==="HIT") reqCache++; else reqAPI++;
           } catch(e2) {
-            addLog("🛑 Límite persistente — continuando con lo cargado"); break;
+            cargandoEventosRef.current = false; addLog("🛑 Límite persistente — continuando con lo cargado"); break;
           }
         }
       }
     }
     LS(`${KV_PREFIX}_evs`,nuevosEvs); LST(`${KV_PREFIX}_evs`);
     setEventos(nuevosEvs); setEstado(e=>({...e,eventos:"ok"}));
+    cargandoEventosRef.current = false;
     addLog(`✅ ${cargados}/${terminados.length} eventos · ${reqAPI} API · ${reqCache} KV`);
   }, [partidos, eventos]);
 
