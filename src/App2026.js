@@ -259,10 +259,16 @@ export default function App({ quinielaId = "familia" }) {
   // ── Fetch eventos ───────────────────────────────────────────────────────────
   const fetchEventos = useCallback(async (forzar=false) => {
     const ahora=Date.now(), ts=LDT(`${KV_PREFIX}_evs`);
-    if (!forzar&&(ahora-ts)<CACHE_EVENTS_MS&&Object.keys(eventos).length>0) {
+    const terminadosIds = partidos
+      .filter(p=>FINAL.includes(p.fixture?.status?.short)||VIVO.includes(p.fixture?.status?.short))
+      .map(p=>p.fixture?.id);
+    const faltantes = terminadosIds.filter(id=>!eventos[id]);
+    // Skip cache only if all finished matches have events AND cache is fresh
+    if (!forzar&&(ahora-ts)<CACHE_EVENTS_MS&&Object.keys(eventos).length>0&&faltantes.length===0) {
       addLog(`💾 Eventos en caché (${Object.keys(eventos).length} partidos)`);
       return;
     }
+    if (faltantes.length>0) addLog(`📥 ${faltantes.length} partidos sin eventos — cargando...`);
     const terminados = partidos.filter(p=>
       FINAL.includes(p.fixture?.status?.short) || VIVO.includes(p.fixture?.status?.short)
     );
