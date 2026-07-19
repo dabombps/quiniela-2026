@@ -294,7 +294,7 @@ export default function App({ quinielaId = "familia" }) {
         if (cache==="HIT") reqCache++; else reqAPI++;
         if (cargados%10===0||cargados===todos.length)
           addLog(`${cache==="HIT"?"💾":"🌐"} ${cargados}/${todos.length} · API:${reqAPI} KV:${reqCache}`);
-        await new Promise(r=>setTimeout(r,3000)); // 3s between requests = max 20/min
+        await new Promise(r=>setTimeout(r,10000)); // 10s between requests = max 6/min, safe under Pro limit
       } catch(e) {
         if (e.message.includes("limit")||e.message.includes("429")||e.message.includes("rateLimit")) {
           addLog(`⏳ Límite alcanzado — esperando 60s (${cargados}/${todos.length} cargados)`);
